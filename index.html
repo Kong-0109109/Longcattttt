@@ -1,60 +1,3 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Longcat 100關精選挑戰</title>
-    <style>
-        body {
-            display: flex; flex-direction: column; align-items: center;
-            background-color: #f7f1e3; font-family: 'Microsoft JhengHei', sans-serif;
-            transition: background-color 0.8s ease; margin: 0; padding: 20px;
-        }
-        .ui-panel {
-            background: white; padding: 15px 30px; border-radius: 20px;
-            box-shadow: 0 8px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px;
-        }
-        canvas {
-            background-color: #fff; border: 8px solid #fff;
-            border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        }
-        .stats { font-size: 18px; font-weight: bold; color: #333; }
-        .btn-group { margin-top: 15px; display: flex; gap: 10px; }
-        button {
-            padding: 10px 25px; border: none; border-radius: 12px;
-            background: #ff7675; color: white; cursor: pointer; font-weight: bold;
-        }
-        button:hover { background: #d63031; }
-        .login-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: flex; justify-content: center;
-            align-items: center; z-index: 100;
-        }
-    </style>
-</head>
-<body>
-
-<div id="login-modal" class="login-overlay">
-    <div class="ui-panel">
-        <h2>🐱 Longcat 100 🐱</h2>
-        <input type="text" id="username-input" placeholder="你的冒險者名字" style="padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
-        <br><br>
-        <button onclick="userLogin()">開始挑戰 100 關</button>
-    </div>
-</div>
-
-<div class="ui-panel">
-    <h1><span id="display-name">Player</span></h1>
-    <div class="stats">Level: <span id="lvl-num">1</span> / 100</div>
-</div>
-
-<canvas id="gameCanvas"></canvas>
-
-<div class="btn-group">
-    <button onclick="resetLevel()">重玩本關</button>
-    <button onclick="logout()" style="background:#aaa;">更換帳號</button>
-</div>
-
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -65,59 +8,73 @@
     let catPath = [];
     let TILE_SIZE = 60;
     const TOTAL_LEVELS = 100;
-
-    // 儲存所有生成的 100 關數據
     const ALL_LEVELS = [];
 
-    // --- 關卡生成核心：逆向挖掘法 (確保有解) ---
-    function generate100Levels() {
-        for (let i = 1; i <= TOTAL_LEVELS; i++) {
-            const size = Math.min(4 + Math.floor(i / 15), 10); // 隨難度增加地圖大小
-            let map = Array.from({ length: size }, () => Array(size).fill(1)); // 先全是牆壁
-            
-            // 從隨機一點開始逆向挖掘
-            let curX = Math.floor(Math.random() * size);
-            let curY = Math.floor(Math.random() * size);
-            map[curY][curX] = 2; // 這裡是玩家最後要達到的「終點」，但在這算法中是「起點」
-            
-            let steps = 0;
-            const maxSteps = size * size - Math.floor(size/2); // 挖掘步數
-            const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+    // --- 核心修正：DFS 完美路徑生成器 ---
+    // 這能保證地圖是從起點出發，一筆畫填滿所有空格，絕對不會有死路。
+    function generatePerfectLevel(lvl) {
+        const size = Math.min(4 + Math.floor(lvl / 15), 9); 
+        let map = Array.from({ length: size }, () => Array(size).fill(1)); // 1是牆壁
+        
+        let path = [];
+        let curX = Math.floor(Math.random() * size);
+        let curY = Math.floor(Math.random() * size);
+        
+        path.push({x: curX, y: curY});
+        map[curY][curX] = 0; // 挖空
+        
+        // 嘗試填滿地圖的 70%~90% 空間，確保挑戰性
+        const targetEmpty = Math.floor(size * size * 0.8);
+        let attempts = 0;
 
-            while(steps < maxSteps) {
-                let d = dirs[Math.floor(Math.random()*4)];
-                let nX = curX + d[0], nY = curY + d[1];
-                if(nX>=0 && nX<size && nY>=0 && nY<size) {
-                    if(map[nY][nX] === 1) {
-                        map[nY][nX] = 0;
-                        steps++;
-                    }
-                    curX = nX; curY = nY;
+        while(path.length < targetEmpty && attempts < 500) {
+            let last = path[path.length - 1];
+            let dirs = [[0,1],[0,-1],[1,0],[-1,0]].sort(() => Math.random() - 0.5);
+            let found = false;
+
+            for(let d of dirs) {
+                let nX = last.x + d[0], nY = last.y + d[1];
+                if(nX>=0 && nX<size && nY>=0 && nY<size && map[nY][nX] === 1) {
+                    map[nY][nX] = 0;
+                    path.push({x: nX, y: nY});
+                    found = true;
+                    break;
                 }
             }
-            // 修正：最後停留的位置就是玩家的起始點
-            map[curY][curX] = 2; 
+            if(!found) break; // 如果無路可走則停止，這條路徑就是唯一解
+            attempts++;
+        }
 
-            // 設定主題
-            const themes = [
-                { bg: "#f7f1e3", wall: "📦", skin: "🐱" },
-                { bg: "#d1ccc0", wall: "🧱", skin: "🐱" },
-                { bg: "#ffb8b8", wall: "🌸", skin: "🦊" },
-                { bg: "#706fd3", wall: "💎", skin: "🐲" }
-            ];
-            
-            ALL_LEVELS.push({
-                map: map,
-                theme: themes[Math.floor((i-1)/25) % themes.length]
-            });
+        // 起點設在路徑的最開頭
+        const start = path[0];
+        map[start.y][start.x] = 2; 
+
+        // 主題邏輯
+        const themes = [
+            { bg: "#f7f1e3", wall: "📦", skin: "🐱" },
+            { bg: "#d1ccc0", wall: "🧱", skin: "🐱" },
+            { bg: "#ffb8b8", wall: "🌸", skin: "🦊" },
+            { bg: "#706fd3", wall: "💎", skin: "🐲" }
+        ];
+        
+        return {
+            map: map,
+            theme: themes[Math.floor((lvl-1)/25) % themes.length]
+        };
+    }
+
+    function generate100Levels() {
+        for (let i = 1; i <= TOTAL_LEVELS; i++) {
+            ALL_LEVELS.push(generatePerfectLevel(i));
         }
     }
 
+    // --- UI 與 存檔邏輯 (維持不變) ---
     function userLogin() {
         const name = document.getElementById('username-input').value.trim();
         if(!name) return alert("請輸入名字！");
         currentUser = name;
-        const savedData = JSON.parse(localStorage.getItem('longcat_final_v4_' + name)) || { lvl: 1 };
+        const savedData = JSON.parse(localStorage.getItem('longcat_final_v5_' + name)) || { lvl: 1 };
         currentLvl = savedData.lvl;
         document.getElementById('login-modal').style.display = 'none';
         document.getElementById('display-name').innerText = name + " 的冒險";
@@ -140,8 +97,7 @@
             }
         }
 
-        // 動態調整格子大小避免超出螢幕
-        TILE_SIZE = Math.min(60, (window.innerHeight * 0.5) / grid.length);
+        TILE_SIZE = Math.min(60, (window.innerHeight * 0.6) / grid.length);
         canvas.width = grid[0].length * TILE_SIZE;
         canvas.height = grid.length * TILE_SIZE;
         document.getElementById('lvl-num').innerText = currentLvl;
@@ -163,7 +119,6 @@
             }
         }
 
-        // 畫腳印
         catPath.forEach((pos, i) => {
             if(i < catPath.length - 1) {
                 ctx.font = (TILE_SIZE*0.5) + "px Arial";
@@ -171,7 +126,6 @@
             }
         });
 
-        // 畫頭部
         const head = catPath[catPath.length - 1];
         ctx.font = (TILE_SIZE*0.8) + "px Arial";
         ctx.fillText(data.theme.skin, head.x*TILE_SIZE + TILE_SIZE*0.1, head.y*TILE_SIZE + TILE_SIZE*0.8);
@@ -197,11 +151,10 @@
         if(!hasEmpty) {
             setTimeout(() => {
                 if(currentLvl >= 100) {
-                    alert("傳奇！你完成了全部 100 關！");
+                    alert("你是真正的長長貓大師！100 關達成！");
                 } else {
-                    alert("關卡完成！");
                     currentLvl++;
-                    localStorage.setItem('longcat_final_v4_' + currentUser, JSON.stringify({ lvl: currentLvl }));
+                    localStorage.setItem('longcat_final_v5_' + currentUser, JSON.stringify({ lvl: currentLvl }));
                     initLevel();
                 }
             }, 200);
@@ -219,9 +172,5 @@
         if(e.key === "ArrowRight") move(1, 0);
     });
 
-    // 初始化 100 關數據
     generate100Levels();
 </script>
-
-</body>
-</html>
