@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Longcat: 邏輯精選 20 關</title>
+    <title>Longcat: 邏輯修正版</title>
     <style>
         body {
             display: flex; flex-direction: column; align-items: center;
             background-color: #f7f1e3; font-family: 'Microsoft JhengHei', sans-serif;
-            margin: 0; padding: 20px; min-height: 100vh;
+            margin: 0; padding: 20px;
         }
         .ui-panel {
             background: white; padding: 15px 30px; border-radius: 20px;
@@ -18,15 +18,15 @@
             background-color: #fff; border: 8px solid #fff;
             border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.1);
         }
-        .stats { font-size: 18px; font-weight: bold; color: #333; }
+        .stats { font-size: 18px; font-weight: bold; }
+        button {
+            padding: 10px 25px; border: none; border-radius: 12px;
+            background: #ff7675; color: white; cursor: pointer; font-weight: bold;
+        }
         .login-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.8); display: flex; justify-content: center;
             align-items: center; z-index: 100;
-        }
-        button {
-            padding: 10px 25px; border: none; border-radius: 12px;
-            background: #ff7675; color: white; cursor: pointer; font-weight: bold;
         }
     </style>
 </head>
@@ -34,7 +34,7 @@
 
 <div id="login-modal" class="login-overlay">
     <div class="ui-panel">
-        <h2>🐱 Longcat 邏輯挑戰 🐱</h2>
+        <h2>🐱 真正的邏輯挑戰 🐱</h2>
         <input type="text" id="username-input" placeholder="輸入玩家名稱" style="padding: 10px; margin-bottom: 10px;">
         <br>
         <button onclick="userLogin()">開始遊戲</button>
@@ -63,35 +63,42 @@
     let catPath = [];
     let TILE_SIZE = 60;
 
-    // --- 嚴謹設計的 20 關地圖 (0:空地, 1:牆壁, 2:起點) ---
+    // --- 重新設計的地圖：打破直線慣性 ---
+    // 0:空地, 1:牆壁, 2:起點
     const ALL_LEVELS = [
-        { m: [[2,0,0],[0,1,0],[0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 1
-        { m: [[1,0,0],[2,0,0],[1,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 2: 修正後
-        { m: [[2,0,1],[0,0,0],[1,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 3
-        { m: [[0,0,1,0],[0,0,0,0],[1,0,2,0],[0,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 4
-        { m: [[2,0,0,1],[0,0,1,0],[0,1,0,0],[1,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 5
-        { m: [[0,0,1,0],[0,2,0,0],[1,0,1,0],[0,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 6
-        { m: [[0,0,0,0],[1,1,0,0],[0,0,2,0],[0,1,1,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 7
-        { m: [[0,0,0,1],[1,0,0,0],[0,0,2,0],[0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 8
-        { m: [[0,0,0,0,1],[0,1,1,0,0],[2,0,0,0,0],[0,1,1,0,1],[0,0,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 9
-        { m: [[1,0,0,0,0],[0,0,2,0,1],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,1,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 10
-        { m: [[2,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 11
-        { m: [[0,0,0,0,0,1],[1,1,1,0,0,0],[2,0,0,0,1,1],[0,0,0,0,0,0],[0,1,1,1,1,1]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 12
-        { m: [[0,0,1,0,0,0],[0,1,0,0,2,0],[0,0,0,1,0,0],[0,1,0,0,0,0],[0,0,0,0,1,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 13
-        { m: [[2,0,0,0,0,1],[0,1,1,1,0,0],[0,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 14
-        { m: [[0,0,0,0,0,0,0],[0,1,1,1,1,1,0],[2,0,0,0,0,0,0],[0,1,1,1,1,1,0],[0,0,0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 15
-        { m: [[0,0,0,0,0,0,1],[0,1,1,0,1,1,0],[0,1,2,0,1,1,0],[0,1,1,0,1,1,0],[0,0,0,0,0,0,1]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 16
-        { m: [[2,0,0,1,0,0,0],[0,1,0,1,0,1,0],[0,0,0,0,0,0,0],[1,0,1,0,1,0,1],[0,0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 17
-        { m: [[0,0,0,0,0,0,0],[0,1,1,0,1,1,0],[0,0,0,0,0,0,0],[0,1,1,0,1,1,0],[0,0,0,2,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 18
-        { m: [[0,0,0,0,0,0,0,0],[0,1,1,1,1,1,1,0],[0,0,0,0,0,0,0,0],[0,1,1,1,1,1,1,0],[2,0,0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 19
-        { m: [[2,0,0,0,0,0,0,0],[0,1,0,1,0,1,0,1],[0,0,0,0,0,0,0,0],[1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }  // 20
+        // 第 1 關：基本的轉彎練習
+        { m: [[2,0],[1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, 
+        // 第 2 關：修正你的痛點。起點在角落，必須利用牆壁停頓，不能有三點一線的死路。
+        { m: [[2,1,1],[0,0,1],[1,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, 
+        // 第 3 關：十字形佈局，考驗選擇順序
+        { m: [[1,0,1],[0,2,0],[1,0,1]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, 
+        // 第 4 關：S 型路徑
+        { m: [[2,0,1],[1,0,0],[0,0,1]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} },
+        // 第 5 關：環形佈局
+        { m: [[2,0,0],[0,1,0],[0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} },
+        // 第 6 關之後開始加入更複雜的牆壁位置
+        { m: [[0,0,0,1],[1,0,2,0],[0,0,1,0],[0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
+        { m: [[2,0,1,0],[0,1,0,0],[0,0,0,1],[1,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
+        { m: [[1,0,0,0],[0,2,1,0],[0,0,0,0],[0,1,0,1]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
+        { m: [[0,1,0,0],[0,0,0,1],[1,0,2,0],[0,0,1,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
+        { m: [[1,0,1,0],[0,0,0,0],[0,2,0,1],[0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
+        { m: [[2,0,0,0,1],[1,1,1,0,0],[0,0,0,0,0],[0,0,1,1,1],[1,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
+        { m: [[1,0,0,1,0],[0,0,2,0,0],[0,1,0,1,0],[0,0,0,0,0],[1,0,0,1,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
+        { m: [[0,0,0,0,0],[0,1,1,1,0],[0,1,2,1,0],[0,1,0,1,0],[0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
+        { m: [[2,0,1,0,0],[0,0,0,1,0],[1,0,0,0,1],[0,1,0,0,0],[0,0,1,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
+        { m: [[0,0,0,0,0],[0,1,0,1,0],[0,0,2,0,0],[0,1,0,1,0],[0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
+        { m: [[2,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} },
+        { m: [[0,0,0,0,0,1],[0,1,1,1,0,0],[2,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} },
+        { m: [[1,0,0,0,0,1],[0,0,1,1,0,0],[0,1,2,0,0,0],[0,0,1,1,0,0],[1,0,0,0,0,1]], t: {bg:"#706fd3", w:"💎", s:"🐲"} },
+        { m: [[0,0,1,0,0,0],[0,0,0,0,1,0],[0,1,2,1,0,0],[0,0,0,0,0,0],[0,0,1,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} },
+        { m: [[2,1,1,1,1,1],[0,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }
     ];
 
     function userLogin() {
         const name = document.getElementById('username-input').value.trim();
         if(!name) return;
         currentUser = name;
-        const saved = JSON.parse(localStorage.getItem('lc_20fixed_v2_'+name)) || {lvl:1};
+        const saved = JSON.parse(localStorage.getItem('lc_logic_v3_'+name)) || {lvl:1};
         currentLvl = Math.min(saved.lvl, 20);
         document.getElementById('login-modal').style.display = 'none';
         document.getElementById('display-name').innerText = name;
@@ -108,11 +115,11 @@
             for(let c=0; c<grid[0].length; c++) {
                 if(grid[r][c] === 2) {
                     catPath.push({x:c, y:r});
-                    grid[r][c] = 3;
+                    grid[r][c] = 3; 
                 }
             }
         }
-        TILE_SIZE = Math.min(60, (window.innerHeight*0.55)/grid.length);
+        TILE_SIZE = Math.min(65, (window.innerHeight*0.55)/grid.length);
         canvas.width = grid[0].length * TILE_SIZE;
         canvas.height = grid.length * TILE_SIZE;
         document.getElementById('lvl-num').innerText = currentLvl;
@@ -145,7 +152,7 @@
         let head = catPath[catPath.length-1], moved = false;
         while(true) {
             let nx = head.x+dx, ny = head.y+dy;
-            if(ny>=0 && ny<grid.length && nx>=0 && nx<grid[0].length && grid[ny][nx]===0) {
+            if(ny>=0 && ny<grid.length && nx>=0 && nx<grid[0].length && grid[ny][nX]===0) {
                 grid[ny][nx]=3; catPath.push({x:nx, y:ny}); head={x:nx, y:ny}; moved=true;
             } else break;
         }
@@ -158,10 +165,10 @@
             setTimeout(() => {
                 if(currentLvl < 20) {
                     currentLvl++;
-                    localStorage.setItem('lc_20fixed_v2_'+currentUser, JSON.stringify({lvl:currentLvl}));
+                    localStorage.setItem('lc_logic_v3_'+currentUser, JSON.stringify({lvl:currentLvl}));
                     initLevel();
                 } else {
-                    alert("你是邏輯大師！20 關全部通關！");
+                    alert("你是邏輯天才！成功避開所有直線死路！");
                 }
             }, 200);
         }
