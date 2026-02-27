@@ -3,17 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Longcat 100關精選挑戰</title>
+    <title>Longcat: 精選 20 關挑戰</title>
     <style>
         body {
             display: flex; flex-direction: column; align-items: center;
             background-color: #f7f1e3; font-family: 'Microsoft JhengHei', sans-serif;
-            margin: 0; padding: 20px; min-height: 100vh;
-        }
-        #loading-screen {
-            position: fixed; top:0; left:0; width:100%; height:100%;
-            background: #ffeaa7; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 200;
+            margin: 0; padding: 20px; min-height: 100vh; transition: 0.5s;
         }
         .ui-panel {
             background: white; padding: 15px 30px; border-radius: 20px;
@@ -22,11 +17,11 @@
         canvas {
             background-color: #fff; border: 8px solid #fff;
             border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            max-width: 90vw;
         }
+        .stats { font-size: 18px; font-weight: bold; color: #333; }
         .login-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: none; justify-content: center;
+            background: rgba(0,0,0,0.8); display: flex; justify-content: center;
             align-items: center; z-index: 100;
         }
         button {
@@ -37,23 +32,18 @@
 </head>
 <body>
 
-<div id="loading-screen">
-    <h2>🐱 正在準備 100 個關卡...</h2>
-    <p>這可能需要幾秒鐘</p>
-</div>
-
 <div id="login-modal" class="login-overlay">
     <div class="ui-panel">
-        <h2>🐱 Longcat 冒險 🐱</h2>
-        <input type="text" id="username-input" placeholder="你的名字" style="padding: 10px; margin-bottom: 10px;">
+        <h2>🐱 Longcat 精選挑戰 🐱</h2>
+        <input type="text" id="username-input" placeholder="輸入玩家名稱" style="padding: 10px; margin-bottom: 10px;">
         <br>
-        <button onclick="userLogin()">開始挑戰</button>
+        <button onclick="userLogin()">進入遊戲</button>
     </div>
 </div>
 
 <div class="ui-panel">
     <h1><span id="display-name">Player</span></h1>
-    <div style="font-weight:bold;">關卡: <span id="lvl-num">1</span> / 100</div>
+    <div class="stats">關卡: <span id="lvl-num">1</span> / 20</div>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -71,81 +61,48 @@
     let currentLvl = 1;
     let grid = [];
     let catPath = [];
-    let ALL_LEVELS = [];
-    let TILE_SIZE = 50;
+    let TILE_SIZE = 60;
 
-    // 1. 深度優先搜索生成地圖 (增加防卡死限制)
-    function createMap(lvl) {
-        const size = Math.min(4 + Math.floor(lvl / 15), 9);
-        let map, path;
-        let success = false;
-        let retry = 0;
-
-        while(!success && retry < 20) {
-            map = Array.from({ length: size }, () => Array(size).fill(1));
-            path = [];
-            let cx = Math.floor(Math.random() * size), cy = Math.floor(Math.random() * size);
-            map[cy][cx] = 0;
-            path.push({x: cx, y: cy});
-
-            const target = Math.floor(size * size * 0.75);
-            for(let i=0; i<1000; i++) {
-                let last = path[path.length-1];
-                let dirs = [[0,1],[0,-1],[1,0],[-1,0]].sort(()=>Math.random()-0.5);
-                let move = false;
-                for(let d of dirs) {
-                    let nx = last.x + d[0], ny = last.y + d[1];
-                    if(nx>=0 && nx<size && ny>=0 && ny<size && map[ny][nx]===1) {
-                        map[ny][nx] = 0;
-                        path.push({x: nx, y: ny});
-                        move = true; break;
-                    }
-                }
-                if(!move || path.length >= target) break;
-            }
-            if(path.length >= target * 0.8) success = true;
-            retry++;
-        }
-        map[path[0].y][path[0].x] = 2; // 起點
-        return { map, theme: getTheme(lvl) };
-    }
-
-    function getTheme(lvl) {
-        const themes = [
-            { bg: "#f7f1e3", wall: "📦", skin: "🐱" },
-            { bg: "#d1ccc0", wall: "🧱", skin: "🐱" },
-            { bg: "#ffb8b8", wall: "🌸", skin: "🦊" },
-            { bg: "#706fd3", wall: "💎", skin: "🐲" }
-        ];
-        return themes[Math.floor((lvl-1)/25) % themes.length];
-    }
-
-    // 2. 初始化流程
-    window.onload = () => {
-        // 非同步生成，防止 UI 卡死
-        setTimeout(() => {
-            for(let i=1; i<=100; i++) ALL_LEVELS.push(createMap(i));
-            document.getElementById('loading-screen').style.display = 'none';
-            document.getElementById('login-modal').style.display = 'flex';
-        }, 500);
-    };
+    // --- 手動設計 20 關地圖 (0:空地, 1:牆壁, 2:起點) ---
+    const ALL_LEVELS = [
+        { m: [[2,0,0],[0,1,0],[0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 1
+        { m: [[1,0,0],[0,2,0],[0,0,1]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 2
+        { m: [[2,0,1],[0,0,0],[1,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 3
+        { m: [[1,0,0,0],[0,2,0,0],[0,0,0,1],[0,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 4
+        { m: [[2,0,0,1],[0,1,0,0],[0,0,0,0],[1,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 5
+        { m: [[0,0,1,0],[1,2,0,0],[0,0,1,0],[0,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 6
+        { m: [[0,0,0,0],[0,1,1,0],[0,0,2,0],[0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 7
+        { m: [[1,0,0,0],[0,0,0,1],[0,1,0,0],[0,0,0,2]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 8
+        { m: [[2,0,0,0,0],[1,1,0,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 9
+        { m: [[0,0,1,0,0],[0,2,0,0,0],[1,0,1,0,1],[0,0,0,0,0],[0,0,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 10
+        { m: [[2,0,0,0,0,0],[0,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,0],[0,0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 11
+        { m: [[0,0,0,0,0,1],[0,1,1,1,0,0],[2,0,0,0,0,0],[0,1,1,1,0,0],[0,0,0,0,0,1]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 12
+        { m: [[1,0,0,0,0,1],[0,0,1,1,0,0],[0,1,2,0,0,0],[0,0,1,1,0,0],[1,0,0,0,0,1]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 13
+        { m: [[0,0,0,0,1,0],[0,2,1,0,0,0],[0,0,0,0,1,0],[1,1,1,0,0,0],[0,0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 14
+        { m: [[2,0,0,0,0,0,0],[0,1,1,1,1,1,0],[0,0,0,0,0,0,0],[0,1,1,1,1,1,0],[0,0,0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 15
+        { m: [[0,0,0,0,0,0,1],[0,1,1,0,1,0,0],[0,1,2,0,1,0,0],[0,1,1,0,1,0,0],[0,0,0,0,0,0,1]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 16
+        { m: [[2,0,0,1,0,0,0],[0,1,0,0,0,1,0],[0,0,0,1,0,0,0],[1,0,1,0,1,0,1],[0,0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 17
+        { m: [[0,0,0,0,0,0,0],[0,1,1,0,1,1,0],[0,1,0,0,0,1,0],[0,0,0,2,0,0,0],[0,1,1,0,1,1,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 18
+        { m: [[0,0,0,0,0,0,0,0],[0,1,1,1,1,1,1,0],[0,0,0,0,0,0,0,0],[0,1,1,1,1,1,1,0],[0,0,0,0,0,0,0,2]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 19
+        { m: [[2,0,0,0,0,0,0,0],[0,1,0,1,0,1,0,1],[0,0,0,0,0,0,0,0],[1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }  // 20
+    ];
 
     function userLogin() {
         const name = document.getElementById('username-input').value.trim();
         if(!name) return;
         currentUser = name;
-        const saved = JSON.parse(localStorage.getItem('lc_v6_'+name)) || {lvl:1};
-        currentLvl = saved.lvl;
+        const saved = JSON.parse(localStorage.getItem('lc_20fixed_'+name)) || {lvl:1};
+        currentLvl = Math.min(saved.lvl, 20);
         document.getElementById('login-modal').style.display = 'none';
         document.getElementById('display-name').innerText = name;
         initLevel();
     }
 
     function initLevel() {
-        const data = ALL_LEVELS[currentLvl-1];
-        grid = data.map.map(r => [...r]);
+        const data = ALL_LEVELS[currentLvl - 1];
+        grid = data.m.map(r => [...r]);
         catPath = [];
-        document.body.style.backgroundColor = data.theme.bg;
+        document.body.style.backgroundColor = data.t.bg;
 
         for(let r=0; r<grid.length; r++) {
             for(let c=0; c<grid[0].length; c++) {
@@ -155,7 +112,7 @@
                 }
             }
         }
-        TILE_SIZE = Math.min(60, (window.innerHeight*0.5)/grid.length);
+        TILE_SIZE = Math.min(65, (window.innerHeight*0.5)/grid.length);
         canvas.width = grid[0].length * TILE_SIZE;
         canvas.height = grid.length * TILE_SIZE;
         document.getElementById('lvl-num').innerText = currentLvl;
@@ -166,11 +123,11 @@
         ctx.clearRect(0,0,canvas.width,canvas.height);
         const data = ALL_LEVELS[currentLvl-1];
         grid.forEach((row, r) => row.forEach((cell, c) => {
-            ctx.strokeStyle = "#eee";
+            ctx.strokeStyle = "rgba(0,0,0,0.05)";
             ctx.strokeRect(c*TILE_SIZE, r*TILE_SIZE, TILE_SIZE, TILE_SIZE);
             if(cell === 1) {
                 ctx.font = (TILE_SIZE*0.7)+"px Arial";
-                ctx.fillText(data.theme.wall, c*TILE_SIZE+TILE_SIZE*0.15, r*TILE_SIZE+TILE_SIZE*0.75);
+                ctx.fillText(data.t.w, c*TILE_SIZE+TILE_SIZE*0.15, r*TILE_SIZE+TILE_SIZE*0.75);
             }
         }));
         catPath.forEach((p, i) => {
@@ -181,7 +138,7 @@
         });
         const head = catPath[catPath.length-1];
         ctx.font = (TILE_SIZE*0.8)+"px Arial";
-        ctx.fillText(data.theme.skin, head.x*TILE_SIZE+TILE_SIZE*0.1, head.y*TILE_SIZE+TILE_SIZE*0.8);
+        ctx.fillText(data.t.s, head.x*TILE_SIZE+TILE_SIZE*0.1, head.y*TILE_SIZE+TILE_SIZE*0.8);
     }
 
     function move(dx, dy) {
@@ -196,11 +153,16 @@
     }
 
     function checkWin() {
-        if(!grid.some(r => r.includes(0))) {
+        const hasEmpty = grid.some(r => r.includes(0));
+        if(!hasEmpty) {
             setTimeout(() => {
-                currentLvl++;
-                localStorage.setItem('lc_v6_'+currentUser, JSON.stringify({lvl:currentLvl}));
-                initLevel();
+                if(currentLvl < 20) {
+                    currentLvl++;
+                    localStorage.setItem('lc_20fixed_'+currentUser, JSON.stringify({lvl:currentLvl}));
+                    initLevel();
+                } else {
+                    alert("萬歲！你通關了所有精選 20 關！");
+                }
             }, 200);
         }
     }
