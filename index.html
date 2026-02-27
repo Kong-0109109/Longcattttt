@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Q版 Longcat: 冒險王</title>
+    <title>Q版 Longcat: 100關大挑戰</title>
     <style>
         body {
             display: flex; flex-direction: column; align-items: center;
@@ -14,13 +14,12 @@
             background: white; padding: 15px 30px; border-radius: 20px;
             box-shadow: 0 8px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px;
         }
-        h1 { color: #ff5252; margin: 0; }
         #game-container { position: relative; }
         canvas {
             background-color: #fff; border: 10px solid #fff;
             border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.05);
         }
-        .stats { font-size: 18px; color: #333; margin: 5px 0; }
+        .stats { font-size: 18px; font-weight: bold; color: #333; }
         .btn-group { margin-top: 15px; display: flex; gap: 10px; }
         button {
             padding: 10px 20px; border: none; border-radius: 12px;
@@ -38,26 +37,24 @@
 
 <div id="login-modal" class="login-overlay">
     <div class="ui-panel">
-        <h2>歡迎來到長長貓！</h2>
-        <p>請輸入玩家名稱以紀錄進度：</p>
-        <input type="text" id="username-input" placeholder="你的名字..." style="padding: 10px; width: 80%; border-radius: 5px; border: 1px solid #ddd;">
+        <h2>🐱 長長貓冒險 🐱</h2>
+        <p>輸入名字開始 100 關挑戰：</p>
+        <input type="text" id="username-input" placeholder="你的名字..." style="padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
         <br><br>
-        <button onclick="userLogin()">開始冒險</button>
+        <button onclick="userLogin()">進入遊戲</button>
     </div>
 </div>
 
 <div class="ui-panel">
-    <h1>🐱 <span id="display-name">Player</span> 的長長貓</h1>
-    <div class="stats">第 <span id="lvl-num">1</span> 關 (最高紀錄: <span id="record-num">1</span>)</div>
-    <div id="skin-tag" style="font-size: 14px; color: #777;">解鎖皮膚：🐱 橘橘</div>
+    <h1><span id="display-name">Player</span> 的冒險</h1>
+    <div class="stats">關卡: <span id="lvl-num">1</span> / 100</div>
+    <div id="skin-tag" style="color: #777;">解鎖皮膚：🐱 橘橘</div>
 </div>
 
-<div id="game-container">
-    <canvas id="gameCanvas"></canvas>
-</div>
+<canvas id="gameCanvas"></canvas>
 
 <div class="btn-group">
-    <button onclick="resetLevel()">重新嘗試</button>
+    <button onclick="resetLevel()">重玩本關 (同一地圖)</button>
     <button onclick="logout()" style="background:#aaa;">更換帳號</button>
 </div>
 
@@ -72,76 +69,70 @@
     let skin = "🐱";
     const TILE_SIZE = 55;
 
-    // 地圖色彩主題
     const THEMES = [
-        { bg: "#f7f1e3", grid: "#fff", wall: "📦" }, // 草原
-        { bg: "#d1ccc0", grid: "#f1f2f6", wall: "🧱" }, // 工廠
-        { bg: "#ffb8b8", grid: "#fff0f0", wall: "🌸" }, // 櫻花
-        { bg: "#706fd3", grid: "#474787", wall: "💎" }  // 城堡
+        { bg: "#f7f1e3", wall: "📦" }, // 草原
+        { bg: "#d1ccc0", wall: "🧱" }, // 工廠
+        { bg: "#ffb8b8", wall: "🌸" }, // 櫻花
+        { bg: "#706fd3", wall: "💎" }  // 城堡
     ];
+
+    // --- 核心：固定種子的隨機生成器 ---
+    // 確保第 N 關的地圖永遠一樣
+    function seededRandom(seed) {
+        let x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+    }
+
+    function generateFixedLevel(lvl) {
+        const size = Math.min(4 + Math.floor(lvl / 10), 10); // 每10關增加大小
+        let newMap = Array.from({ length: size }, () => Array(size).fill(0));
+        
+        // 使用關卡數字作為種子來放置牆壁
+        const wallCount = Math.floor(size * size * 0.12);
+        for(let i=0; i<wallCount; i++) {
+            let rx = Math.floor(seededRandom(lvl + i) * size);
+            let ry = Math.floor(seededRandom(lvl * i + 1) * size);
+            if (!(rx === 0 && ry === 0)) newMap[ry][rx] = 1;
+        }
+
+        // 起點固定在 (0,0) 或根據種子固定位置
+        newMap[0][0] = 2; 
+        return newMap;
+    }
 
     function userLogin() {
         const name = document.getElementById('username-input').value.trim();
         if(!name) return alert("請輸入名字！");
-        
         currentUser = name;
-        // 讀取持久化數據
-        const savedData = JSON.parse(localStorage.getItem('longcat_data_' + name)) || { lvl: 1 };
+        const savedData = JSON.parse(localStorage.getItem('longcat_100_data_' + name)) || { lvl: 1 };
         currentLvl = savedData.lvl;
-        
         document.getElementById('login-modal').style.display = 'none';
         document.getElementById('display-name').innerText = name;
         initLevel();
     }
 
-    function saveProgress() {
-        localStorage.setItem('longcat_data_' + currentUser, JSON.stringify({ lvl: currentLvl }));
-    }
-
-    // 自動生成關卡核心算法
-    function generateLevel(lvl) {
-        const size = Math.min(4 + Math.floor(lvl / 5), 9); // 每5關變大一點
-        let newMap = Array.from({ length: size }, () => Array(size).fill(0));
-        
-        // 隨機障礙物 (隨著等級增加難度)
-        const wallCount = Math.floor(size * size * 0.15);
-        for(let i=0; i<wallCount; i++) {
-            let rx = Math.floor(Math.random()*size);
-            let ry = Math.floor(Math.random()*size);
-            newMap[ry][rx] = 1;
-        }
-
-        // 隨機起點
-        let startX = Math.floor(Math.random()*size);
-        let startY = Math.floor(Math.random()*size);
-        newMap[startY][startX] = 2;
-
-        return newMap;
-    }
-
     function initLevel() {
-        const mapData = generateLevel(currentLvl);
+        // 核心修正：固定獲取當前關卡的地圖
+        const mapData = generateFixedLevel(currentLvl);
         grid = mapData.map(row => [...row]);
-        catPath = [];
+        
+        // 核心修正：初始化路徑時直接標記起點為「已填滿(3)」
+        catPath = [{x: 0, y: 0}];
+        grid[0][0] = 3; 
 
-        // 設置地圖轉換與皮膚
+        // 主題切換
         const themeIndex = Math.floor((currentLvl-1) / 5) % THEMES.length;
         document.body.style.backgroundColor = THEMES[themeIndex].bg;
-        if(currentLvl >= 5) { skin = "🦊"; document.getElementById('skin-tag').innerText = "解鎖皮膚：🦊 小狐"; }
-        if(currentLvl >= 10) { skin = "🐯"; document.getElementById('skin-tag').innerText = "解鎖皮膚：🐯 虎虎"; }
-        if(currentLvl >= 15) { skin = "🐲"; document.getElementById('skin-tag').innerText = "解鎖皮膚：🐲 龍龍"; }
-
-        canvas.width = grid[0].length * TILE_SIZE;
-        canvas.height = grid.length * TILE_SIZE;
-
-        for(let r=0; r<grid.length; r++) {
-            for(let c=0; c<grid[0].length; c++) {
-                if(grid[r][c] === 2) catPath.push({x: c, y: r});
-            }
-        }
+        
+        // 皮膚進度
+        if(currentLvl < 10) { skin = "🐱"; }
+        else if(currentLvl < 25) { skin = "🦊"; }
+        else if(currentLvl < 50) { skin = "🐯"; }
+        else { skin = "🐲"; }
         
         document.getElementById('lvl-num').innerText = currentLvl;
-        document.getElementById('record-num').innerText = currentLvl;
+        canvas.width = grid[0].length * TILE_SIZE;
+        canvas.height = grid.length * TILE_SIZE;
         draw();
     }
 
@@ -151,7 +142,7 @@
 
         for(let r=0; r<grid.length; r++) {
             for(let c=0; c<grid[0].length; c++) {
-                ctx.strokeStyle = "#ddd";
+                ctx.strokeStyle = "rgba(0,0,0,0.05)";
                 ctx.strokeRect(c*TILE_SIZE, r*TILE_SIZE, TILE_SIZE, TILE_SIZE);
                 if(grid[r][c] === 1) {
                     ctx.font = "35px Arial";
@@ -160,13 +151,16 @@
             }
         }
 
+        // 畫所有位置的腳印 (包含起點)
         catPath.forEach((pos, i) => {
-            if(i > 0) {
+            // 現在起點也會畫上腳印，除非它是頭部
+            if(i < catPath.length - 1) {
                 ctx.font = "25px Arial";
                 ctx.fillText("🐾", pos.x*TILE_SIZE + 15, pos.y*TILE_SIZE + 38);
             }
         });
 
+        // 畫頭部
         const head = catPath[catPath.length-1];
         ctx.font = "40px Arial";
         ctx.fillText(skin, head.x*TILE_SIZE + 8, head.y*TILE_SIZE + 45);
@@ -188,20 +182,27 @@
     }
 
     function checkWin() {
-        if(!grid.some(row => row.includes(0))) {
+        // 檢查是否還有 0 (空格)
+        const hasEmpty = grid.some(row => row.includes(0));
+        if(!hasEmpty) {
             setTimeout(() => {
-                alert("太棒了 " + currentUser + "！進入下一關！");
-                currentLvl++;
-                saveProgress();
-                initLevel();
+                if(currentLvl >= 100) {
+                    alert("傳奇！你已通關所有 100 關！");
+                } else {
+                    alert("第 " + currentLvl + " 關完成！");
+                    currentLvl++;
+                    localStorage.setItem('longcat_100_data_' + currentUser, JSON.stringify({ lvl: currentLvl }));
+                    initLevel();
+                }
             }, 200);
         }
     }
 
-    function resetLevel() { initLevel(); }
+    function resetLevel() { initLevel(); } // 現在重玩會載入同一張固定地圖
     function logout() { location.reload(); }
 
     window.addEventListener('keydown', (e) => {
+        if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) e.preventDefault();
         if(e.key === "ArrowUp") move(0, -1);
         if(e.key === "ArrowDown") move(0, 1);
         if(e.key === "ArrowLeft") move(-1, 0);
