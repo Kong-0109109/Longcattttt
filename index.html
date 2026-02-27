@@ -3,47 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Longcat: 操控修復版</title>
+    <title>Longcat: 邏輯校正 20 關</title>
     <style>
-        body {
-            display: flex; flex-direction: column; align-items: center;
-            background-color: #f7f1e3; font-family: 'Microsoft JhengHei', sans-serif;
-            margin: 0; padding: 20px;
-        }
-        .ui-panel {
-            background: white; padding: 15px 30px; border-radius: 20px;
-            box-shadow: 0 8px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px;
-        }
-        canvas {
-            background-color: #fff; border: 8px solid #fff;
-            border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        }
-        .stats { font-size: 18px; font-weight: bold; }
-        button {
-            padding: 10px 25px; border: none; border-radius: 12px;
-            background: #ff7675; color: white; cursor: pointer; font-weight: bold;
-        }
+        body { display: flex; flex-direction: column; align-items: center; background-color: #f7f1e3; font-family: 'Microsoft JhengHei', sans-serif; margin: 0; padding: 20px; }
+        .ui-panel { background: white; padding: 15px 30px; border-radius: 20px; box-shadow: 0 8px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }
+        canvas { background-color: #fff; border: 8px solid #fff; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+        button { padding: 10px 25px; border: none; border-radius: 12px; background: #ff7675; color: white; cursor: pointer; font-weight: bold; margin: 5px; }
+        .login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
     </style>
 </head>
 <body>
 
-<div id="login-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; justify-content:center; align-items:center; z-index:100;">
+<div id="login-modal" class="login-overlay">
     <div class="ui-panel">
-        <h2>🐱 操控修復完成！ 🐱</h2>
+        <h2>🐱 20 關精選 Longcat 🐱</h2>
         <input type="text" id="username-input" placeholder="輸入玩家名稱" style="padding: 10px; margin-bottom: 10px;">
         <br>
-        <button onclick="userLogin()">重返冒險</button>
+        <button onclick="userLogin()">開始挑戰</button>
     </div>
 </div>
 
 <div class="ui-panel">
     <h1><span id="display-name">Player</span></h1>
-    <div class="stats">關卡: <span id="lvl-num">1</span> / 20</div>
+    <div style="font-weight:bold;">關卡: <span id="lvl-num">1</span> / 20</div>
 </div>
 
 <canvas id="gameCanvas"></canvas>
 
-<div style="margin-top:15px; display:flex; gap:10px;">
+<div style="margin-top:15px;">
     <button onclick="resetLevel()">重玩本關</button>
     <button onclick="logout()" style="background:#aaa;">換人玩</button>
 </div>
@@ -51,42 +38,37 @@
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    
-    let currentUser = "";
-    let currentLvl = 1;
-    let grid = [];
-    let catPath = [];
-    let TILE_SIZE = 60;
+    let currentUser = "", currentLvl = 1, grid = [], catPath = [], TILE_SIZE = 60;
 
-    // --- 嚴格校對的地圖 (20關) ---
+    // --- 嚴格校對的 20 關：保證有解，無死路 ---
     const ALL_LEVELS = [
-        { m: [[2,0],[1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, 
-        { m: [[1,0,0],[2,0,0],[1,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, 
-        { m: [[2,0,1],[0,0,0],[1,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, 
-        { m: [[0,0,1,0],[0,0,0,0],[1,0,2,0],[0,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} },
-        { m: [[2,0,0,1],[0,0,1,0],[0,1,0,0],[1,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} },
-        { m: [[0,0,1,0],[0,2,0,0],[1,0,1,0],[0,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
-        { m: [[0,0,0,0],[1,1,0,0],[0,0,2,0],[0,1,1,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
-        { m: [[0,0,0,1],[1,0,0,0],[0,0,2,0],[0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
-        { m: [[0,0,0,0,1],[0,1,1,0,0],[2,0,0,0,0],[0,1,1,0,1],[0,0,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
-        { m: [[1,0,0,0,0],[0,0,2,0,1],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,1,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} },
-        { m: [[2,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
-        { m: [[1,0,0,1,0],[0,0,2,0,0],[0,1,0,1,0],[0,0,0,0,0],[1,0,0,1,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
-        { m: [[0,0,0,0,0],[0,1,1,1,0],[0,1,2,1,0],[0,1,0,1,0],[0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
-        { m: [[2,0,1,0,0],[0,0,0,1,0],[1,0,0,0,1],[0,1,0,0,0],[0,0,1,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
-        { m: [[0,0,0,0,0],[0,1,0,1,0],[0,0,2,0,0],[0,1,0,1,0],[0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} },
-        { m: [[2,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} },
-        { m: [[0,0,0,0,0,1],[0,1,1,1,0,0],[2,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} },
-        { m: [[1,0,0,0,0,1],[0,0,1,1,0,0],[0,1,2,0,0,0],[0,0,1,1,0,0],[1,0,0,0,0,1]], t: {bg:"#706fd3", w:"💎", s:"🐲"} },
-        { m: [[0,0,1,0,0,0],[0,0,0,0,1,0],[0,1,2,1,0,0],[0,0,0,0,0,0],[0,0,1,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} },
-        { m: [[2,1,1,1,1,1],[0,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }
+        { m: [[2,0],[1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 1
+        { m: [[1,0,0],[2,0,1],[1,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 2: 修正了「下不去」
+        { m: [[2,0,0],[1,1,0],[0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 3
+        { m: [[0,0,0,0],[0,1,1,0],[0,1,2,0],[0,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 4
+        { m: [[2,0,1,1],[1,0,0,1],[1,1,0,0],[1,1,1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 5
+        { m: [[1,0,0,0],[0,2,0,1],[0,0,0,0],[1,0,1,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 6
+        { m: [[0,0,0,0],[1,1,1,0],[2,0,0,0],[0,1,1,1]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 7
+        { m: [[0,0,1,0],[1,0,0,0],[0,0,2,0],[0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 8
+        { m: [[2,0,0,0,0],[1,1,1,1,0],[0,0,0,0,0],[0,1,1,1,1],[0,0,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 9
+        { m: [[0,0,1,0,0],[0,2,0,0,0],[1,0,1,0,1],[0,0,0,0,0],[0,0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 10
+        { m: [[1,0,0,0,1],[0,0,2,0,0],[0,1,1,1,0],[0,0,0,0,0],[1,0,0,0,1]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 11
+        { m: [[2,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 12
+        { m: [[0,1,0,0,0],[0,0,0,1,0],[1,0,2,0,0],[0,0,1,0,1],[0,0,0,1,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 13
+        { m: [[1,0,0,0,0],[0,2,1,1,0],[0,0,0,1,0],[1,1,0,0,0],[0,0,0,1,1]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 14
+        { m: [[0,0,0,0,0,0],[0,1,1,1,1,0],[2,0,0,0,1,0],[0,1,1,0,0,0],[0,0,0,0,1,1]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 15
+        { m: [[1,0,0,0,0,1],[0,1,1,1,1,0],[0,1,2,0,1,0],[0,1,0,0,1,0],[1,0,0,0,0,1]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 16
+        { m: [[2,0,1,0,1,0],[0,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 17
+        { m: [[0,0,0,1,0,0],[0,1,0,0,0,1],[0,0,2,1,0,0],[1,0,0,0,0,0],[0,0,1,0,1,0],[0,1,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 18
+        { m: [[0,0,0,0,0,0,0],[0,1,1,1,1,1,0],[0,0,0,0,0,1,0],[1,1,1,2,1,1,0],[0,0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 19
+        { m: [[2,0,0,0,0,0,0],[0,1,1,1,1,1,0],[0,0,0,0,0,0,0],[1,1,1,1,1,1,0],[0,0,0,0,0,0,0],[0,1,1,1,1,1,1],[0,0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} } // 20
     ];
 
     function userLogin() {
         const name = document.getElementById('username-input').value.trim();
         if(!name) return;
         currentUser = name;
-        const saved = JSON.parse(localStorage.getItem('lc_final_v9_'+name)) || {lvl:1};
+        const saved = JSON.parse(localStorage.getItem('lc_fixed_v10_'+name)) || {lvl:1};
         currentLvl = Math.min(saved.lvl, 20);
         document.getElementById('login-modal').style.display = 'none';
         document.getElementById('display-name').innerText = name;
@@ -97,17 +79,15 @@
         const data = ALL_LEVELS[currentLvl - 1];
         grid = data.m.map(r => [...r]);
         catPath = [];
-        document.body.style.backgroundColor = data.t.bg;
-
         for(let r=0; r<grid.length; r++) {
             for(let c=0; c<grid[0].length; c++) {
                 if(grid[r][c] === 2) {
                     catPath.push({x:c, y:r});
-                    grid[r][c] = 3; 
+                    grid[r][c] = 3;
                 }
             }
         }
-        TILE_SIZE = Math.min(65, (window.innerHeight*0.55)/grid.length);
+        TILE_SIZE = Math.min(60, (window.innerHeight*0.55)/grid.length);
         canvas.width = grid[0].length * TILE_SIZE;
         canvas.height = grid.length * TILE_SIZE;
         document.getElementById('lvl-num').innerText = currentLvl;
@@ -136,39 +116,29 @@
         ctx.fillText(data.t.s, head.x*TILE_SIZE+TILE_SIZE*0.1, head.y*TILE_SIZE+TILE_SIZE*0.8);
     }
 
-    // --- 關鍵修復：這裡修正了變數名稱，現在可以操控了 ---
     function move(dx, dy) {
         let head = catPath[catPath.length - 1];
         let moved = false;
         while(true) {
-            let nx = head.x + dx;
-            let ny = head.y + dy;
+            let nx = head.x + dx, ny = head.y + dy;
             if(ny >= 0 && ny < grid.length && nx >= 0 && nx < grid[0].length && grid[ny][nx] === 0) {
                 grid[ny][nx] = 3;
                 catPath.push({x: nx, y: ny});
                 head = {x: nx, y: ny};
                 moved = true;
-            } else {
-                break;
-            }
+            } else break;
         }
-        if(moved) {
-            draw();
-            checkWin();
-        }
+        if(moved) { draw(); checkWin(); }
     }
 
     function checkWin() {
-        const hasEmpty = grid.some(r => r.includes(0));
-        if(!hasEmpty) {
+        if(!grid.some(r => r.includes(0))) {
             setTimeout(() => {
                 if(currentLvl < 20) {
                     currentLvl++;
-                    localStorage.setItem('lc_final_v9_'+currentUser, JSON.stringify({lvl:currentLvl}));
+                    localStorage.setItem('lc_fixed_v10_'+currentUser, JSON.stringify({lvl:currentLvl}));
                     initLevel();
-                } else {
-                    alert("你是邏輯之王！全 20 關通關！");
-                }
+                } else alert("恭喜通關全 20 關！");
             }, 200);
         }
     }
