@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Longcat: 邏輯校正 20 關</title>
+    <title>Longcat: 邏輯校正最終版</title>
     <style>
         body { display: flex; flex-direction: column; align-items: center; background-color: #f7f1e3; font-family: 'Microsoft JhengHei', sans-serif; margin: 0; padding: 20px; }
         .ui-panel { background: white; padding: 15px 30px; border-radius: 20px; box-shadow: 0 8px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }
@@ -16,10 +16,10 @@
 
 <div id="login-modal" class="login-overlay">
     <div class="ui-panel">
-        <h2>🐱 20 關精選 Longcat 🐱</h2>
+        <h2>🐱 Longcat 邏輯挑戰 🐱</h2>
         <input type="text" id="username-input" placeholder="輸入玩家名稱" style="padding: 10px; margin-bottom: 10px;">
         <br>
-        <button onclick="userLogin()">開始挑戰</button>
+        <button onclick="userLogin()">進入冒險</button>
     </div>
 </div>
 
@@ -40,10 +40,14 @@
     const ctx = canvas.getContext('2d');
     let currentUser = "", currentLvl = 1, grid = [], catPath = [], TILE_SIZE = 60;
 
-    // --- 嚴格校對的 20 關：保證有解，無死路 ---
+    // --- 重新設計的 20 關地圖 ---
     const ALL_LEVELS = [
         { m: [[2,0],[1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 1
-        { m: [[1,0,0],[2,0,1],[1,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 2: 修正了「下不去」
+        { m: [
+            [0, 0, 2], // 第二關：拔掉了左上和右邊的箱子
+            [0, 0, 0], 
+            [1, 0, 0]  // 僅保留左下角一個箱子作為轉向點
+        ], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, 
         { m: [[2,0,0],[1,1,0],[0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 3
         { m: [[0,0,0,0],[0,1,1,0],[0,1,2,0],[0,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 4
         { m: [[2,0,1,1],[1,0,0,1],[1,1,0,0],[1,1,1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 5
@@ -68,7 +72,7 @@
         const name = document.getElementById('username-input').value.trim();
         if(!name) return;
         currentUser = name;
-        const saved = JSON.parse(localStorage.getItem('lc_fixed_v10_'+name)) || {lvl:1};
+        const saved = JSON.parse(localStorage.getItem('lc_final_v11_'+name)) || {lvl:1};
         currentLvl = Math.min(saved.lvl, 20);
         document.getElementById('login-modal').style.display = 'none';
         document.getElementById('display-name').innerText = name;
@@ -87,7 +91,7 @@
                 }
             }
         }
-        TILE_SIZE = Math.min(60, (window.innerHeight*0.55)/grid.length);
+        TILE_SIZE = Math.min(65, (window.innerHeight*0.55)/grid.length);
         canvas.width = grid[0].length * TILE_SIZE;
         canvas.height = grid.length * TILE_SIZE;
         document.getElementById('lvl-num').innerText = currentLvl;
@@ -136,9 +140,9 @@
             setTimeout(() => {
                 if(currentLvl < 20) {
                     currentLvl++;
-                    localStorage.setItem('lc_fixed_v10_'+currentUser, JSON.stringify({lvl:currentLvl}));
+                    localStorage.setItem('lc_final_v11_'+currentUser, JSON.stringify({lvl:currentLvl}));
                     initLevel();
-                } else alert("恭喜通關全 20 關！");
+                } else alert("傳奇！你完成了所有 20 關！");
             }, 200);
         }
     }
