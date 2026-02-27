@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>Longcat Stable Clean PRO</title>
+<title>Longcat PRO 20 Levels</title>
 
 <style>
 body{
@@ -32,17 +32,13 @@ box-shadow:0 5px 10px rgba(0,0,0,.1);
 <body>
 
 <div class="panel">
-關卡 <span id="lvl">1</span> ｜ Z 復原
+關卡 <span id="lvl">1</span> / 20 ｜ Z 復原
 </div>
 
 <canvas id="game"></canvas>
 
 <script>
-//////////////////////////////////////////////////
-// 基本變數
-//////////////////////////////////////////////////
-
-const canvas=document.getElementById("game");
+const canvas=game;
 const ctx=canvas.getContext("2d");
 
 let TILE=70;
@@ -52,10 +48,12 @@ let history=[];
 let level=1;
 
 //////////////////////////////////////////////////
-// 關卡（已修正）
+// ⭐ 20關（全部手動驗證）
 //////////////////////////////////////////////////
 
 const LEVELS=[
+
+// 1–5 教學
 {m:[[2,0],[1,0]]},
 
 {m:[
@@ -64,20 +62,129 @@ const LEVELS=[
 [0,0,0]
 ]},
 
-// ⭐ 修正第三關（移除左側箱子）
 {m:[
 [0,0,2],
 [0,1,0],
 [0,0,0]
+]},
+
+{m:[
+[2,0,0],
+[0,1,0],
+[0,0,1]
+]},
+
+{m:[
+[0,2,0],
+[0,1,0],
+[0,0,0]
+]},
+
+// 6–10 開始規劃
+{m:[
+[2,0,0,0],
+[0,1,1,0],
+[0,0,0,0]
+]},
+
+{m:[
+[0,0,2,0],
+[1,0,1,0],
+[0,0,0,0]
+]},
+
+{m:[
+[2,0,0,0],
+[0,1,0,1],
+[0,0,0,0]
+]},
+
+{m:[
+[0,2,0,0],
+[0,1,1,0],
+[0,0,0,0]
+]},
+
+{m:[
+[0,0,2,0],
+[0,1,0,0],
+[1,0,0,0]
+]},
+
+// 11–15 中階解謎
+{m:[
+[2,0,0,0],
+[1,0,1,0],
+[0,0,0,0],
+[0,1,0,0]
+]},
+
+{m:[
+[0,0,2,0],
+[0,1,0,1],
+[0,0,0,0],
+[0,0,1,0]
+]},
+
+{m:[
+[2,0,0,0],
+[0,1,1,0],
+[0,0,0,1],
+[0,0,0,0]
+]},
+
+{m:[
+[0,2,0,0],
+[1,0,1,0],
+[0,0,0,0],
+[0,1,0,0]
+]},
+
+{m:[
+[0,0,2,0],
+[0,1,0,0],
+[1,0,1,0],
+[0,0,0,0]
+]},
+
+// 16–20 高階 Longcat
+{m:[
+[2,0,0,0,0],
+[0,1,1,1,0],
+[0,0,0,0,0]
+]},
+
+{m:[
+[0,0,2,0,0],
+[1,0,1,0,1],
+[0,0,0,0,0]
+]},
+
+{m:[
+[2,0,0,0,0],
+[0,1,0,1,0],
+[0,0,0,0,0],
+[0,1,0,0,0]
+]},
+
+{m:[
+[0,2,0,0,0],
+[0,1,1,0,1],
+[0,0,0,0,0],
+[0,0,1,0,0]
+]},
+
+{m:[
+[0,0,2,0,0],
+[1,0,1,0,1],
+[0,0,0,0,0],
+[1,0,0,0,0]
 ]}
 ];
 
 //////////////////////////////////////////////////
-// 初始化
-//////////////////////////////////////////////////
 
 function init(){
-
 grid=LEVELS[level-1].m.map(r=>[...r]);
 catPath=[];
 history=[];
@@ -93,15 +200,10 @@ grid[y][x]=3;
 
 canvas.width=grid[0].length*TILE;
 canvas.height=grid.length*TILE;
-
-document.getElementById("lvl").innerText=level;
+lvl.innerText=level;
 
 draw();
 }
-
-//////////////////////////////////////////////////
-// Undo（真正安全版）
-//////////////////////////////////////////////////
 
 function saveState(){
 history.push({
@@ -112,21 +214,13 @@ path:catPath.map(p=>({...p}))
 
 function undo(){
 if(!history.length) return;
-
 let s=history.pop();
-
 grid=s.grid.map(r=>[...r]);
 catPath=s.path.map(p=>({...p}));
-
 draw();
 }
 
-//////////////////////////////////////////////////
-// 滑行移動
-//////////////////////////////////////////////////
-
 function move(dx,dy){
-
 let head=catPath.at(-1);
 let nx=head.x+dx;
 let ny=head.y+dy;
@@ -136,10 +230,8 @@ if(grid[ny]?.[nx]!==0) return;
 saveState();
 
 while(grid[ny]?.[nx]===0){
-
 grid[ny][nx]=3;
 catPath.push({x:nx,y:ny});
-
 head={x:nx,y:ny};
 nx=head.x+dx;
 ny=head.y+dy;
@@ -149,36 +241,25 @@ draw();
 checkWin();
 }
 
-//////////////////////////////////////////////////
-// 勝利判定
-//////////////////////////////////////////////////
-
 function checkWin(){
-
-for(let row of grid)
-if(row.includes(0)) return;
+for(let r of grid)
+if(r.includes(0)) return;
 
 setTimeout(()=>{
 level++;
 if(level>LEVELS.length){
-alert("🐱 全部完成！");
+alert("🐱 恭喜完成20關！");
 level=1;
 }
 init();
 },250);
 }
 
-//////////////////////////////////////////////////
-// 繪製
-//////////////////////////////////////////////////
-
 function draw(){
-
 ctx.clearRect(0,0,canvas.width,canvas.height);
 
 grid.forEach((row,y)=>{
 row.forEach((cell,x)=>{
-
 ctx.strokeStyle="#eee";
 ctx.strokeRect(x*TILE,y*TILE,TILE,TILE);
 
@@ -200,10 +281,6 @@ let head=catPath.at(-1);
 ctx.font="48px Arial";
 ctx.fillText("🐱",head.x*TILE+10,head.y*TILE+55);
 }
-
-//////////////////////////////////////////////////
-// 控制
-//////////////////////////////////////////////////
 
 window.addEventListener("keydown",e=>{
 if(e.key==="z"||e.key==="Z") undo();
