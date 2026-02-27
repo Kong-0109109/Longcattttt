@@ -1,164 +1,250 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Longcat: 邏輯校正最終版</title>
-    <style>
-        body { display: flex; flex-direction: column; align-items: center; background-color: #f7f1e3; font-family: 'Microsoft JhengHei', sans-serif; margin: 0; padding: 20px; }
-        .ui-panel { background: white; padding: 15px 30px; border-radius: 20px; box-shadow: 0 8px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }
-        canvas { background-color: #fff; border: 8px solid #fff; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
-        button { padding: 10px 25px; border: none; border-radius: 12px; background: #ff7675; color: white; cursor: pointer; font-weight: bold; margin: 5px; }
-        .login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
-    </style>
+<meta charset="UTF-8">
+<title>Longcat Ultimate Edition</title>
+
+<style>
+body{
+display:flex;
+flex-direction:column;
+align-items:center;
+background:#f7f1e3;
+font-family:"Microsoft JhengHei";
+margin:0;padding:20px;
+}
+.ui{background:#fff;padding:15px 25px;border-radius:15px;
+box-shadow:0 6px 12px rgba(0,0,0,.1);margin-bottom:15px}
+canvas{
+background:#fff;border-radius:15px;
+box-shadow:0 0 20px rgba(0,0,0,.15)}
+button{
+padding:10px 20px;border:none;border-radius:10px;
+background:#ff7675;color:#fff;font-weight:bold;cursor:pointer}
+</style>
 </head>
+
 <body>
 
-<div id="login-modal" class="login-overlay">
-    <div class="ui-panel">
-        <h2>🐱 Longcat 精選 20 關 🐱</h2>
-        <input type="text" id="username-input" placeholder="輸入玩家名稱" style="padding: 10px; margin-bottom: 10px;">
-        <br>
-        <button onclick="userLogin()">開始挑戰</button>
-    </div>
+<div class="ui">
+<h2 id="player">Player</h2>
+關卡 <span id="lvl">1</span>/20　
+(Z 可復原一步)
 </div>
 
-<div class="ui-panel">
-    <h1><span id="display-name">Player</span></h1>
-    <div style="font-weight:bold;">關卡: <span id="lvl-num">1</span> / 20</div>
-</div>
+<canvas id="game"></canvas>
 
-<canvas id="gameCanvas"></canvas>
-
-<div style="margin-top:15px;">
-    <button onclick="resetLevel()">重玩本關</button>
-    <button onclick="logout()" style="background:#aaa;">換人玩</button>
+<div style="margin-top:10px">
+<button onclick="reset()">重玩</button>
 </div>
 
 <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    let currentUser = "", currentLvl = 1, grid = [], catPath = [], TILE_SIZE = 60;
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
 
-    const ALL_LEVELS = [
-        { m: [[2,0],[1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 1
-        { m: [[0, 0, 2],[0, 0, 0],[1, 0, 0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 2
-        { m: [[2,0,0],[1,1,0],[0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 3
-        { m: [[0,0,0,0],[0,1,1,0],[0,1,2,0],[0,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 4
-        { m: [[2,0,1,1],[1,0,0,1],[1,1,0,0],[1,1,1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 5
-        { m: [
-            [0, 0, 0, 1], // 第 6 關：右上角新增方塊 (0,3)
-            [0, 2, 0, 0], 
-            [0, 1, 1, 0], // 正下方 (2,1) 與原有的 (2,2) 都有方塊
-            [0, 0, 0, 0]  
-        ], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, 
-        { m: [[0,0,0,0],[1,1,1,0],[2,0,0,0],[0,1,1,1]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 7
-        { m: [[0,0,1,0],[1,0,0,0],[0,0,2,0],[0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 8
-        { m: [[2,0,0,0,0],[1,1,1,1,0],[0,0,0,0,0],[0,1,1,1,1],[0,0,0,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 9
-        { m: [[0,0,1,0,0],[0,2,0,0,0],[1,0,1,0,1],[0,0,0,0,0],[0,0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 10
-        { m: [[1,0,0,0,1],[0,0,2,0,0],[0,1,1,1,0],[0,0,0,0,0],[1,0,0,0,1]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 11
-        { m: [[2,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 12
-        { m: [[0,1,0,0,0],[0,0,0,1,0],[1,0,2,0,0],[0,0,1,0,1],[0,0,0,1,0]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 13
-        { m: [[1,0,0,0,0],[0,2,1,1,0],[0,0,0,1,0],[1,1,0,0,0],[0,0,0,1,1]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 14
-        { m: [[0,0,0,0,0,0],[0,1,1,1,1,0],[2,0,0,0,1,0],[0,1,1,0,0,0],[0,0,0,0,1,1]], t: {bg:"#ffb8b8", w:"🌸", s:"🦊"} }, // 15
-        { m: [[1,0,0,0,0,1],[0,1,1,1,1,0],[0,1,2,0,1,0],[0,1,0,0,1,0],[1,0,0,0,0,1]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 16
-        { m: [[2,0,1,0,1,0],[0,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1],[0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 17
-        { m: [[0,0,0,1,0,0],[0,1,0,0,0,1],[0,0,2,1,0,0],[1,0,0,0,0,0],[0,0,1,0,1,0],[0,1,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 18
-        { m: [[0,0,0,0,0,0,0],[0,1,1,1,1,1,0],[0,0,0,0,0,1,0],[1,1,1,2,1,1,0],[0,0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} }, // 19
-        { m: [[2,0,0,0,0,0,0],[0,1,1,1,1,1,0],[0,0,0,0,0,0,0],[1,1,1,1,1,1,0],[0,0,0,0,0,0,0],[0,1,1,1,1,1,1],[0,0,0,0,0,0,0]], t: {bg:"#706fd3", w:"💎", s:"🐲"} } // 20
-    ];
+let grid=[],catPath=[],history=[];
+let lvl=1,TILE=60;
 
-    function userLogin() {
-        const name = document.getElementById('username-input').value.trim();
-        if(!name) return;
-        currentUser = name;
-        const saved = JSON.parse(localStorage.getItem('lc_final_v13_'+name)) || {lvl:1};
-        currentLvl = Math.min(saved.lvl, 20);
-        document.getElementById('login-modal').style.display = 'none';
-        document.getElementById('display-name').innerText = name;
-        initLevel();
-    }
+//////////////////////////////////////////////////
+// ⭐ 重設後的關卡（重新平衡）
+//////////////////////////////////////////////////
 
-    function initLevel() {
-        const data = ALL_LEVELS[currentLvl - 1];
-        grid = data.m.map(r => [...r]);
-        catPath = [];
-        for(let r=0; r<grid.length; r++) {
-            for(let c=0; c<grid[0].length; c++) {
-                if(grid[r][c] === 2) {
-                    catPath.push({x:c, y:r});
-                    grid[r][c] = 3;
-                }
-            }
-        }
-        TILE_SIZE = Math.min(65, (window.innerHeight*0.55)/grid.length);
-        canvas.width = grid[0].length * TILE_SIZE;
-        canvas.height = grid.length * TILE_SIZE;
-        document.getElementById('lvl-num').innerText = currentLvl;
-        draw();
-    }
+const LEVELS=[
+{m:[[2,0],[1,0]]},
+{m:[[2,0,0],[0,1,0],[0,0,0]]},
+{m:[[0,0,2],[1,1,0],[0,0,0]]},
+{m:[[0,0,0,0],[0,1,1,0],[0,0,2,0],[0,0,0,0]]},
+{m:[[2,0,1,1],[0,0,0,1],[1,1,0,0],[1,1,1,0]]},
 
-    function draw() {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        const data = ALL_LEVELS[currentLvl-1];
-        grid.forEach((row, r) => row.forEach((cell, c) => {
-            ctx.strokeStyle = "rgba(0,0,0,0.05)";
-            ctx.strokeRect(c*TILE_SIZE, r*TILE_SIZE, TILE_SIZE, TILE_SIZE);
-            if(cell === 1) {
-                ctx.font = (TILE_SIZE*0.7)+"px Arial";
-                ctx.fillText(data.t.w, c*TILE_SIZE+TILE_SIZE*0.15, r*TILE_SIZE+TILE_SIZE*0.75);
-            }
-        }));
-        catPath.forEach((p, i) => {
-            if(i < catPath.length-1) {
-                ctx.font = (TILE_SIZE*0.5)+"px Arial";
-                ctx.fillText("🐾", p.x*TILE_SIZE+TILE_SIZE*0.25, p.y*TILE_SIZE+TILE_SIZE*0.7);
-            }
-        });
-        const head = catPath[catPath.length-1];
-        ctx.font = (TILE_SIZE*0.8)+"px Arial";
-        ctx.fillText(data.t.s, head.x*TILE_SIZE+TILE_SIZE*0.1, head.y*TILE_SIZE+TILE_SIZE*0.8);
-    }
+{m:[[0,0,1,0],[0,2,0,0],[0,1,1,0],[0,0,0,0]]},
+{m:[[0,0,0,0],[1,1,1,0],[2,0,0,0],[0,1,1,1]]},
+{m:[[0,1,0,0],[0,0,0,1],[1,0,2,0],[0,0,1,0]]},
+{m:[[2,0,0,0,0],[1,1,1,1,0],[0,0,0,0,0],[0,1,1,1,1]]},
+{m:[[0,0,1,0,0],[0,2,0,0,0],[1,0,1,0,1],[0,0,0,0,0]]},
 
-    function move(dx, dy) {
-        let head = catPath[catPath.length - 1];
-        let moved = false;
-        while(true) {
-            let nx = head.x + dx, ny = head.y + dy;
-            if(ny >= 0 && ny < grid.length && nx >= 0 && nx < grid[0].length && grid[ny][nx] === 0) {
-                grid[ny][nx] = 3;
-                catPath.push({x: nx, y: ny});
-                head = {x: nx, y: ny};
-                moved = true;
-            } else break;
-        }
-        if(moved) { draw(); checkWin(); }
-    }
+{m:[[1,0,0,0,1],[0,0,2,0,0],[0,1,1,1,0],[0,0,0,0,0]]},
+{m:[[2,0,0,0,0,0],[1,1,1,1,1,0],[0,0,0,0,0,0],[0,1,1,1,1,1]]},
+{m:[[0,1,0,0,0],[0,0,0,1,0],[1,0,2,0,0],[0,0,1,0,1]]},
+{m:[[1,0,0,0,0],[0,2,1,1,0],[0,0,0,1,0],[1,1,0,0,0]]},
+{m:[[0,0,0,0,0,0],[0,1,1,1,1,0],[2,0,0,0,1,0],[0,1,1,0,0,0]]},
 
-    function checkWin() {
-        if(!grid.some(r => r.includes(0))) {
-            setTimeout(() => {
-                if(currentLvl < 20) {
-                    currentLvl++;
-                    localStorage.setItem('lc_final_v13_'+currentUser, JSON.stringify({lvl:currentLvl}));
-                    initLevel();
-                } else alert("精彩！全 20 關挑戰成功！");
-            }, 200);
-        }
-    }
+{m:[[1,0,0,0,0,1],[0,1,1,1,1,0],[0,1,2,0,1,0],[0,1,0,0,1,0]]},
+{m:[[2,0,1,0,1,0],[0,0,0,0,0,0],[1,1,1,1,1,0]]},
+{m:[[0,0,0,1,0,0],[0,1,0,0,0,1],[0,0,2,1,0,0],[1,0,0,0,0,0]]},
+{m:[[0,1,1,1,1],[0,0,0,1,0],[1,1,2,1,0],[0,0,0,0,0]]},
+{m:[[2,0,0,0,0,0,0],[0,1,1,1,1,1,0],[0,0,0,0,0,0,0],[1,1,1,1,1,1,0]]}
+];
 
-    function resetLevel() { initLevel(); }
-    function logout() { location.reload(); }
+//////////////////////////////////////////////////
+// 初始化
+//////////////////////////////////////////////////
 
-    window.addEventListener('keydown', e => {
-        if(e.key.includes("Arrow")) {
-            e.preventDefault();
-            if(e.key === "ArrowUp") move(0,-1);
-            if(e.key === "ArrowDown") move(0,1);
-            if(e.key === "ArrowLeft") move(-1,0);
-            if(e.key === "ArrowRight") move(1,0);
-        }
-    });
+function init(){
+grid=LEVELS[lvl-1].m.map(r=>[...r]);
+catPath=[];history=[];
+
+for(let y=0;y<grid.length;y++)
+for(let x=0;x<grid[0].length;x++)
+if(grid[y][x]==2){
+catPath.push({x,y});
+grid[y][x]=3;
+}
+
+TILE=Math.min(70,500/grid.length);
+canvas.width=grid[0].length*TILE;
+canvas.height=grid.length*TILE;
+
+document.getElementById("lvl").innerText=lvl;
+draw();
+}
+
+//////////////////////////////////////////////////
+// Flood Fill 檢查死局（核心改良）
+//////////////////////////////////////////////////
+
+function reachableCount(start){
+let stack=[start];
+let visited=new Set([start.x+","+start.y]);
+let count=0;
+
+while(stack.length){
+let p=stack.pop();
+count++;
+
+[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{
+let nx=p.x+d[0],ny=p.y+d[1];
+let key=nx+","+ny;
+if(grid[ny]?.[nx]===0&&!visited.has(key)){
+visited.add(key);
+stack.push({x:nx,y:ny});
+}
+});
+}
+return count;
+}
+
+//////////////////////////////////////////////////
+// 移動
+//////////////////////////////////////////////////
+
+function move(dx,dy){
+
+saveHistory();
+
+let head=catPath.at(-1);
+
+while(true){
+let nx=head.x+dx;
+let ny=head.y+dy;
+
+if(grid[ny]?.[nx]!==0)break;
+
+grid[ny][nx]=3;
+catPath.push({x:nx,y:ny});
+head={x:nx,y:ny};
+
+if(!isSafe()) {
+undo();
+return;
+}
+}
+
+draw();
+checkWin();
+}
+
+function isSafe(){
+let empty=[];
+for(let y=0;y<grid.length;y++)
+for(let x=0;x<grid[0].length;x++)
+if(grid[y][x]==0) empty.push({x,y});
+
+if(!empty.length) return true;
+
+return reachableCount(empty[0])===empty.length;
+}
+
+//////////////////////////////////////////////////
+// Undo
+//////////////////////////////////////////////////
+
+function saveHistory(){
+history.push({
+grid:grid.map(r=>[...r]),
+path:catPath.map(p=>({...p}))
+});
+}
+
+function undo(){
+let h=history.pop();
+if(!h)return;
+grid=h.grid;
+catPath=h.path;
+draw();
+}
+
+//////////////////////////////////////////////////
+// 畫面
+//////////////////////////////////////////////////
+
+function draw(){
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+grid.forEach((row,y)=>{
+row.forEach((cell,x)=>{
+ctx.strokeStyle="#eee";
+ctx.strokeRect(x*TILE,y*TILE,TILE,TILE);
+
+if(cell==1){
+ctx.font=(TILE*.7)+"px Arial";
+ctx.fillText("📦",x*TILE+10,y*TILE+TILE*.8);
+}
+});
+});
+
+catPath.forEach((p,i)=>{
+ctx.font=(TILE*.45)+"px Arial";
+if(i<catPath.length-1)
+ctx.fillText("🐾",p.x*TILE+15,p.y*TILE+TILE*.7);
+});
+
+let head=catPath.at(-1);
+ctx.font=(TILE*.8)+"px Arial";
+ctx.fillText("🐱",head.x*TILE+5,head.y*TILE+TILE*.85);
+}
+
+//////////////////////////////////////////////////
+// 勝利
+//////////////////////////////////////////////////
+
+function checkWin(){
+if(grid.some(r=>r.includes(0)))return;
+
+setTimeout(()=>{
+lvl++;
+if(lvl>20){
+alert("🎉 Longcat 完全制霸！");
+lvl=1;
+}
+init();
+},250);
+}
+
+//////////////////////////////////////////////////
+// 控制
+//////////////////////////////////////////////////
+
+window.addEventListener("keydown",e=>{
+if(e.key==="z"||e.key==="Z") undo();
+if(e.key==="ArrowUp")move(0,-1);
+if(e.key==="ArrowDown")move(0,1);
+if(e.key==="ArrowLeft")move(-1,0);
+if(e.key==="ArrowRight")move(1,0);
+});
+
+function reset(){init();}
+
+init();
 </script>
 </body>
 </html>
