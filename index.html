@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>Longcat Stable Clean</title>
+<title>Longcat Stable Clean PRO</title>
 
 <style>
 body{
@@ -52,13 +52,24 @@ let history=[];
 let level=1;
 
 //////////////////////////////////////////////////
-// 關卡（已驗證）
+// 關卡（已修正）
 //////////////////////////////////////////////////
 
 const LEVELS=[
 {m:[[2,0],[1,0]]},
-{m:[[2,0,0],[0,1,0],[0,0,0]]},
-{m:[[0,0,2],[1,1,0],[0,0,0]]}
+
+{m:[
+[2,0,0],
+[0,1,0],
+[0,0,0]
+]},
+
+// ⭐ 修正第三關（移除左側箱子）
+{m:[
+[0,0,2],
+[0,1,0],
+[0,0,0]
+]}
 ];
 
 //////////////////////////////////////////////////
@@ -89,7 +100,7 @@ draw();
 }
 
 //////////////////////////////////////////////////
-// Undo（可靠快照）
+// Undo（真正安全版）
 //////////////////////////////////////////////////
 
 function saveState(){
@@ -101,14 +112,17 @@ path:catPath.map(p=>({...p}))
 
 function undo(){
 if(!history.length) return;
+
 let s=history.pop();
-grid=s.grid;
-catPath=s.path;
+
+grid=s.grid.map(r=>[...r]);
+catPath=s.path.map(p=>({...p}));
+
 draw();
 }
 
 //////////////////////////////////////////////////
-// 滑行移動（核心）
+// 滑行移動
 //////////////////////////////////////////////////
 
 function move(dx,dy){
@@ -117,7 +131,7 @@ let head=catPath.at(-1);
 let nx=head.x+dx;
 let ny=head.y+dy;
 
-if(grid[ny]?.[nx]!==0) return; // 不能動就不存歷史
+if(grid[ny]?.[nx]!==0) return;
 
 saveState();
 
