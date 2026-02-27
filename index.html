@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>Longcat Stable Verified</title>
+<title>Longcat Stable Clean</title>
 
 <style>
 body{
@@ -38,16 +38,21 @@ box-shadow:0 5px 10px rgba(0,0,0,.1);
 <canvas id="game"></canvas>
 
 <script>
+//////////////////////////////////////////////////
+// 基本變數
+//////////////////////////////////////////////////
+
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 
 let TILE=70;
-let grid=[],catPath=[];
+let grid=[];
+let catPath=[];
 let history=[];
 let level=1;
 
 //////////////////////////////////////////////////
-// 已驗證關卡
+// 關卡（已驗證）
 //////////////////////////////////////////////////
 
 const LEVELS=[
@@ -68,7 +73,7 @@ history=[];
 
 for(let y=0;y<grid.length;y++){
 for(let x=0;x<grid[0].length;x++){
-if(grid[y][x]==2){
+if(grid[y][x]===2){
 catPath.push({x,y});
 grid[y][x]=3;
 }
@@ -79,11 +84,12 @@ canvas.width=grid[0].length*TILE;
 canvas.height=grid.length*TILE;
 
 document.getElementById("lvl").innerText=level;
+
 draw();
 }
 
 //////////////////////////////////////////////////
-// Undo
+// Undo（可靠快照）
 //////////////////////////////////////////////////
 
 function saveState(){
@@ -102,72 +108,41 @@ draw();
 }
 
 //////////////////////////////////////////////////
-// ⭐ 正確防死局：避免孤立單格
-//////////////////////////////////////////////////
-
-function createsIsolatedCell(){
-
-for(let y=0;y<grid.length;y++){
-for(let x=0;x<grid[0].length;x++){
-
-if(grid[y][x]!==0) continue;
-
-let walls=0;
-
-[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{
-let nx=x+d[0];
-let ny=y+d[1];
-if(grid[ny]?.[nx]!==0) walls++;
-});
-
-if(walls===4) return true;
-}
-}
-
-return false;
-}
-
-//////////////////////////////////////////////////
-// 移動
+// 滑行移動（核心）
 //////////////////////////////////////////////////
 
 function move(dx,dy){
 
-saveState();
-
 let head=catPath.at(-1);
-let moved=false;
-
-while(true){
-
 let nx=head.x+dx;
 let ny=head.y+dy;
 
-if(grid[ny]?.[nx]!==0) break;
+if(grid[ny]?.[nx]!==0) return; // 不能動就不存歷史
+
+saveState();
+
+while(grid[ny]?.[nx]===0){
 
 grid[ny][nx]=3;
 catPath.push({x:nx,y:ny});
+
 head={x:nx,y:ny};
-moved=true;
-
-if(createsIsolatedCell()){
-undo();
-return;
-}
+nx=head.x+dx;
+ny=head.y+dy;
 }
 
-if(moved){
 draw();
 checkWin();
 }
-}
 
 //////////////////////////////////////////////////
-// 勝利
+// 勝利判定
 //////////////////////////////////////////////////
 
 function checkWin(){
-if(grid.some(r=>r.includes(0))) return;
+
+for(let row of grid)
+if(row.includes(0)) return;
 
 setTimeout(()=>{
 level++;
@@ -189,10 +164,11 @@ ctx.clearRect(0,0,canvas.width,canvas.height);
 
 grid.forEach((row,y)=>{
 row.forEach((cell,x)=>{
+
 ctx.strokeStyle="#eee";
 ctx.strokeRect(x*TILE,y*TILE,TILE,TILE);
 
-if(cell==1){
+if(cell===1){
 ctx.font="40px Arial";
 ctx.fillText("📦",x*TILE+15,y*TILE+50);
 }
@@ -206,9 +182,9 @@ ctx.fillText("🐾",p.x*TILE+20,p.y*TILE+50);
 }
 });
 
-let h=catPath.at(-1);
+let head=catPath.at(-1);
 ctx.font="48px Arial";
-ctx.fillText("🐱",h.x*TILE+10,h.y*TILE+55);
+ctx.fillText("🐱",head.x*TILE+10,head.y*TILE+55);
 }
 
 //////////////////////////////////////////////////
