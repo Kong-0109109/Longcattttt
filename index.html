@@ -90,6 +90,30 @@ const LEVELS=[
 //////////////////////////////////////////////////
 
 function init(){
+  function rebuildCatFromGrid(){
+
+catPath=[];
+
+for(let y=0;y<grid.length;y++){
+for(let x=0;x<grid[0].length;x++){
+
+if(grid[y][x]===2){
+catPath.push({x,y});
+grid[y][x]=3;
+}
+}
+}
+
+if(catPath.length!==1){
+alert("⚠ 必須且只能有一隻貓起點！");
+editorMode=true;
+return false;
+}
+
+history=[];
+moveCount=0;
+return true;
+}
 grid=LEVELS[level-1].m.map(r=>[...r]);
 catPath=[];
 history=[];
@@ -239,8 +263,20 @@ draw();
 });
 
 function toggleEditor(){
+
 editorMode=!editorMode;
-alert(editorMode?"進入編輯器":"離開編輯器");
+
+if(editorMode){
+alert("進入編輯器模式");
+return;
+}
+
+// ← 離開編輯器時修復資料
+if(!rebuildCatFromGrid()) return;
+
+draw();
+alert("已套用新關卡");
+
 }
 
 //////////////////////////////////////////////////
