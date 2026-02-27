@@ -1,3 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Longcat 100關精選挑戰</title>
+    <style>
+        body {
+            display: flex; flex-direction: column; align-items: center;
+            background-color: #f7f1e3; font-family: 'Microsoft JhengHei', sans-serif;
+            margin: 0; padding: 20px; min-height: 100vh;
+        }
+        #loading-screen {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: #ffeaa7; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 200;
+        }
+        .ui-panel {
+            background: white; padding: 15px 30px; border-radius: 20px;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px;
+        }
+        canvas {
+            background-color: #fff; border: 8px solid #fff;
+            border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            max-width: 90vw;
+        }
+        .login-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: none; justify-content: center;
+            align-items: center; z-index: 100;
+        }
+        button {
+            padding: 10px 25px; border: none; border-radius: 12px;
+            background: #ff7675; color: white; cursor: pointer; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-screen">
+    <h2>🐱 正在準備 100 個關卡...</h2>
+    <p>這可能需要幾秒鐘</p>
+</div>
+
+<div id="login-modal" class="login-overlay">
+    <div class="ui-panel">
+        <h2>🐱 Longcat 冒險 🐱</h2>
+        <input type="text" id="username-input" placeholder="你的名字" style="padding: 10px; margin-bottom: 10px;">
+        <br>
+        <button onclick="userLogin()">開始挑戰</button>
+    </div>
+</div>
+
+<div class="ui-panel">
+    <h1><span id="display-name">Player</span></h1>
+    <div style="font-weight:bold;">關卡: <span id="lvl-num">1</span> / 100</div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div style="margin-top:15px; display:flex; gap:10px;">
+    <button onclick="resetLevel()">重玩本關</button>
+    <button onclick="logout()" style="background:#aaa;">更換帳號</button>
+</div>
+
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -6,98 +71,91 @@
     let currentLvl = 1;
     let grid = [];
     let catPath = [];
-    let TILE_SIZE = 60;
-    const TOTAL_LEVELS = 100;
-    const ALL_LEVELS = [];
+    let ALL_LEVELS = [];
+    let TILE_SIZE = 50;
 
-    // --- 核心修正：DFS 完美路徑生成器 ---
-    // 這能保證地圖是從起點出發，一筆畫填滿所有空格，絕對不會有死路。
-    function generatePerfectLevel(lvl) {
-        const size = Math.min(4 + Math.floor(lvl / 15), 9); 
-        let map = Array.from({ length: size }, () => Array(size).fill(1)); // 1是牆壁
-        
-        let path = [];
-        let curX = Math.floor(Math.random() * size);
-        let curY = Math.floor(Math.random() * size);
-        
-        path.push({x: curX, y: curY});
-        map[curY][curX] = 0; // 挖空
-        
-        // 嘗試填滿地圖的 70%~90% 空間，確保挑戰性
-        const targetEmpty = Math.floor(size * size * 0.8);
-        let attempts = 0;
+    // 1. 深度優先搜索生成地圖 (增加防卡死限制)
+    function createMap(lvl) {
+        const size = Math.min(4 + Math.floor(lvl / 15), 9);
+        let map, path;
+        let success = false;
+        let retry = 0;
 
-        while(path.length < targetEmpty && attempts < 500) {
-            let last = path[path.length - 1];
-            let dirs = [[0,1],[0,-1],[1,0],[-1,0]].sort(() => Math.random() - 0.5);
-            let found = false;
+        while(!success && retry < 20) {
+            map = Array.from({ length: size }, () => Array(size).fill(1));
+            path = [];
+            let cx = Math.floor(Math.random() * size), cy = Math.floor(Math.random() * size);
+            map[cy][cx] = 0;
+            path.push({x: cx, y: cy});
 
-            for(let d of dirs) {
-                let nX = last.x + d[0], nY = last.y + d[1];
-                if(nX>=0 && nX<size && nY>=0 && nY<size && map[nY][nX] === 1) {
-                    map[nY][nX] = 0;
-                    path.push({x: nX, y: nY});
-                    found = true;
-                    break;
+            const target = Math.floor(size * size * 0.75);
+            for(let i=0; i<1000; i++) {
+                let last = path[path.length-1];
+                let dirs = [[0,1],[0,-1],[1,0],[-1,0]].sort(()=>Math.random()-0.5);
+                let move = false;
+                for(let d of dirs) {
+                    let nx = last.x + d[0], ny = last.y + d[1];
+                    if(nx>=0 && nx<size && ny>=0 && ny<size && map[ny][nx]===1) {
+                        map[ny][nx] = 0;
+                        path.push({x: nx, y: ny});
+                        move = true; break;
+                    }
                 }
+                if(!move || path.length >= target) break;
             }
-            if(!found) break; // 如果無路可走則停止，這條路徑就是唯一解
-            attempts++;
+            if(path.length >= target * 0.8) success = true;
+            retry++;
         }
+        map[path[0].y][path[0].x] = 2; // 起點
+        return { map, theme: getTheme(lvl) };
+    }
 
-        // 起點設在路徑的最開頭
-        const start = path[0];
-        map[start.y][start.x] = 2; 
-
-        // 主題邏輯
+    function getTheme(lvl) {
         const themes = [
             { bg: "#f7f1e3", wall: "📦", skin: "🐱" },
             { bg: "#d1ccc0", wall: "🧱", skin: "🐱" },
             { bg: "#ffb8b8", wall: "🌸", skin: "🦊" },
             { bg: "#706fd3", wall: "💎", skin: "🐲" }
         ];
-        
-        return {
-            map: map,
-            theme: themes[Math.floor((lvl-1)/25) % themes.length]
-        };
+        return themes[Math.floor((lvl-1)/25) % themes.length];
     }
 
-    function generate100Levels() {
-        for (let i = 1; i <= TOTAL_LEVELS; i++) {
-            ALL_LEVELS.push(generatePerfectLevel(i));
-        }
-    }
+    // 2. 初始化流程
+    window.onload = () => {
+        // 非同步生成，防止 UI 卡死
+        setTimeout(() => {
+            for(let i=1; i<=100; i++) ALL_LEVELS.push(createMap(i));
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('login-modal').style.display = 'flex';
+        }, 500);
+    };
 
-    // --- UI 與 存檔邏輯 (維持不變) ---
     function userLogin() {
         const name = document.getElementById('username-input').value.trim();
-        if(!name) return alert("請輸入名字！");
+        if(!name) return;
         currentUser = name;
-        const savedData = JSON.parse(localStorage.getItem('longcat_final_v5_' + name)) || { lvl: 1 };
-        currentLvl = savedData.lvl;
+        const saved = JSON.parse(localStorage.getItem('lc_v6_'+name)) || {lvl:1};
+        currentLvl = saved.lvl;
         document.getElementById('login-modal').style.display = 'none';
-        document.getElementById('display-name').innerText = name + " 的冒險";
+        document.getElementById('display-name').innerText = name;
         initLevel();
     }
 
     function initLevel() {
-        const data = ALL_LEVELS[currentLvl - 1];
-        grid = data.map.map(row => [...row]);
+        const data = ALL_LEVELS[currentLvl-1];
+        grid = data.map.map(r => [...r]);
         catPath = [];
-
         document.body.style.backgroundColor = data.theme.bg;
 
         for(let r=0; r<grid.length; r++) {
             for(let c=0; c<grid[0].length; c++) {
                 if(grid[r][c] === 2) {
-                    catPath.push({x: c, y: r});
-                    grid[r][c] = 3; // 標記為貓身體
+                    catPath.push({x:c, y:r});
+                    grid[r][c] = 3;
                 }
             }
         }
-
-        TILE_SIZE = Math.min(60, (window.innerHeight * 0.6) / grid.length);
+        TILE_SIZE = Math.min(60, (window.innerHeight*0.5)/grid.length);
         canvas.width = grid[0].length * TILE_SIZE;
         canvas.height = grid.length * TILE_SIZE;
         document.getElementById('lvl-num').innerText = currentLvl;
@@ -105,58 +163,44 @@
     }
 
     function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const data = ALL_LEVELS[currentLvl - 1];
-
-        for(let r=0; r<grid.length; r++) {
-            for(let c=0; c<grid[0].length; c++) {
-                ctx.strokeStyle = "rgba(0,0,0,0.05)";
-                ctx.strokeRect(c*TILE_SIZE, r*TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                if(grid[r][c] === 1) {
-                    ctx.font = (TILE_SIZE*0.7) + "px Arial";
-                    ctx.fillText(data.theme.wall, c*TILE_SIZE + TILE_SIZE*0.15, r*TILE_SIZE + TILE_SIZE*0.75);
-                }
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        const data = ALL_LEVELS[currentLvl-1];
+        grid.forEach((row, r) => row.forEach((cell, c) => {
+            ctx.strokeStyle = "#eee";
+            ctx.strokeRect(c*TILE_SIZE, r*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            if(cell === 1) {
+                ctx.font = (TILE_SIZE*0.7)+"px Arial";
+                ctx.fillText(data.theme.wall, c*TILE_SIZE+TILE_SIZE*0.15, r*TILE_SIZE+TILE_SIZE*0.75);
             }
-        }
-
-        catPath.forEach((pos, i) => {
-            if(i < catPath.length - 1) {
-                ctx.font = (TILE_SIZE*0.5) + "px Arial";
-                ctx.fillText("🐾", pos.x*TILE_SIZE + TILE_SIZE*0.25, pos.y*TILE_SIZE + TILE_SIZE*0.7);
+        }));
+        catPath.forEach((p, i) => {
+            if(i < catPath.length-1) {
+                ctx.font = (TILE_SIZE*0.5)+"px Arial";
+                ctx.fillText("🐾", p.x*TILE_SIZE+TILE_SIZE*0.25, p.y*TILE_SIZE+TILE_SIZE*0.7);
             }
         });
-
-        const head = catPath[catPath.length - 1];
-        ctx.font = (TILE_SIZE*0.8) + "px Arial";
-        ctx.fillText(data.theme.skin, head.x*TILE_SIZE + TILE_SIZE*0.1, head.y*TILE_SIZE + TILE_SIZE*0.8);
+        const head = catPath[catPath.length-1];
+        ctx.font = (TILE_SIZE*0.8)+"px Arial";
+        ctx.fillText(data.theme.skin, head.x*TILE_SIZE+TILE_SIZE*0.1, head.y*TILE_SIZE+TILE_SIZE*0.8);
     }
 
     function move(dx, dy) {
-        let head = catPath[catPath.length - 1];
-        let moved = false;
+        let head = catPath[catPath.length-1], moved = false;
         while(true) {
-            let nX = head.x + dx, nY = head.y + dy;
-            if(nY >= 0 && nY < grid.length && nX >= 0 && nX < grid[0].length && grid[nY][nX] === 0) {
-                grid[nY][nX] = 3;
-                catPath.push({x: nX, y: nY});
-                head = {x: nX, y: nY};
-                moved = true;
-            } else { break; }
+            let nx = head.x+dx, ny = head.y+dy;
+            if(ny>=0 && ny<grid.length && nx>=0 && nx<grid[0].length && grid[ny][nx]===0) {
+                grid[ny][nx]=3; catPath.push({x:nx, y:ny}); head={x:nx, y:ny}; moved=true;
+            } else break;
         }
         if(moved) { draw(); checkWin(); }
     }
 
     function checkWin() {
-        const hasEmpty = grid.some(row => row.includes(0));
-        if(!hasEmpty) {
+        if(!grid.some(r => r.includes(0))) {
             setTimeout(() => {
-                if(currentLvl >= 100) {
-                    alert("你是真正的長長貓大師！100 關達成！");
-                } else {
-                    currentLvl++;
-                    localStorage.setItem('longcat_final_v5_' + currentUser, JSON.stringify({ lvl: currentLvl }));
-                    initLevel();
-                }
+                currentLvl++;
+                localStorage.setItem('lc_v6_'+currentUser, JSON.stringify({lvl:currentLvl}));
+                initLevel();
             }, 200);
         }
     }
@@ -164,13 +208,15 @@
     function resetLevel() { initLevel(); }
     function logout() { location.reload(); }
 
-    window.addEventListener('keydown', (e) => {
-        if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) e.preventDefault();
-        if(e.key === "ArrowUp") move(0, -1);
-        if(e.key === "ArrowDown") move(0, 1);
-        if(e.key === "ArrowLeft") move(-1, 0);
-        if(e.key === "ArrowRight") move(1, 0);
+    window.addEventListener('keydown', e => {
+        if(e.key.includes("Arrow")) {
+            e.preventDefault();
+            if(e.key === "ArrowUp") move(0,-1);
+            if(e.key === "ArrowDown") move(0,1);
+            if(e.key === "ArrowLeft") move(-1,0);
+            if(e.key === "ArrowRight") move(1,0);
+        }
     });
-
-    generate100Levels();
 </script>
+</body>
+</html>
