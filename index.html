@@ -16,10 +16,10 @@
 
 <div id="login-modal" class="login-overlay">
     <div class="ui-panel">
-        <h2>🐱 Longcat 邏輯挑戰 🐱</h2>
+        <h2>🐱 Longcat 精選 20 關 🐱</h2>
         <input type="text" id="username-input" placeholder="輸入玩家名稱" style="padding: 10px; margin-bottom: 10px;">
         <br>
-        <button onclick="userLogin()">進入冒險</button>
+        <button onclick="userLogin()">開始挑戰</button>
     </div>
 </div>
 
@@ -40,7 +40,6 @@
     const ctx = canvas.getContext('2d');
     let currentUser = "", currentLvl = 1, grid = [], catPath = [], TILE_SIZE = 60;
 
-    // --- 重新設計的 20 關地圖 ---
     const ALL_LEVELS = [
         { m: [[2,0],[1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 1
         { m: [[0, 0, 2],[0, 0, 0],[1, 0, 0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 2
@@ -48,10 +47,10 @@
         { m: [[0,0,0,0],[0,1,1,0],[0,1,2,0],[0,0,0,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 4
         { m: [[2,0,1,1],[1,0,0,1],[1,1,0,0],[1,1,1,0]], t: {bg:"#f7f1e3", w:"📦", s:"🐱"} }, // 5
         { m: [
-            [0, 0, 0, 0], // 第 6 關：已移除左上角方塊
-            [0, 2, 0, 1], 
-            [0, 0, 1, 0], 
-            [0, 0, 0, 0]  // 已移除右下角方塊
+            [0, 0, 0, 1], // 第 6 關：右上角新增方塊 (0,3)
+            [0, 2, 0, 0], 
+            [0, 1, 1, 0], // 正下方 (2,1) 與原有的 (2,2) 都有方塊
+            [0, 0, 0, 0]  
         ], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, 
         { m: [[0,0,0,0],[1,1,1,0],[2,0,0,0],[0,1,1,1]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 7
         { m: [[0,0,1,0],[1,0,0,0],[0,0,2,0],[0,1,0,0]], t: {bg:"#d1ccc0", w:"🧱", s:"🐱"} }, // 8
@@ -73,7 +72,7 @@
         const name = document.getElementById('username-input').value.trim();
         if(!name) return;
         currentUser = name;
-        const saved = JSON.parse(localStorage.getItem('lc_final_v12_'+name)) || {lvl:1};
+        const saved = JSON.parse(localStorage.getItem('lc_final_v13_'+name)) || {lvl:1};
         currentLvl = Math.min(saved.lvl, 20);
         document.getElementById('login-modal').style.display = 'none';
         document.getElementById('display-name').innerText = name;
@@ -141,9 +140,9 @@
             setTimeout(() => {
                 if(currentLvl < 20) {
                     currentLvl++;
-                    localStorage.setItem('lc_final_v12_'+currentUser, JSON.stringify({lvl:currentLvl}));
+                    localStorage.setItem('lc_final_v13_'+currentUser, JSON.stringify({lvl:currentLvl}));
                     initLevel();
-                } else alert("完美通關！");
+                } else alert("精彩！全 20 關挑戰成功！");
             }, 200);
         }
     }
