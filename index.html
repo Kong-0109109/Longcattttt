@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>Longcat PRO Edition</title>
+<title>Longcat PRO Stable</title>
 
 <style>
 body{
@@ -13,15 +13,12 @@ display:flex;
 flex-direction:column;
 align-items:center;
 }
-
 canvas{
 background:#fff;
-margin-top:15px;
+margin-top:20px;
 border-radius:14px;
 box-shadow:0 10px 25px rgba(0,0,0,.15);
-touch-action:none;
 }
-
 .panel{
 background:#fff;
 padding:12px 20px;
@@ -37,16 +34,14 @@ box-shadow:0 5px 10px rgba(0,0,0,.1);
 <div class="panel">
 關卡 <span id="lvl">1</span>
 ｜
-星級：<span id="stars">⭐⭐⭐</span>
-｜
-Z復原 ｜ E編輯器
+Z 復原
 </div>
 
 <canvas id="game"></canvas>
 
 <script>
 //////////////////////////////////////////////////
-// 基本設定
+// 基本
 //////////////////////////////////////////////////
 
 const canvas=document.getElementById("game");
@@ -54,35 +49,18 @@ const ctx=canvas.getContext("2d");
 
 let TILE=70;
 let grid=[],catPath=[];
-let level=1;
 let history=[];
-let moveCount=0;
-let editorMode=false;
+let level=1;
 
 //////////////////////////////////////////////////
-// 音效系統
-//////////////////////////////////////////////////
-
-const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-
-function beep(freq,time){
-let o=audioCtx.createOscillator();
-let g=audioCtx.createGain();
-o.connect(g); g.connect(audioCtx.destination);
-o.frequency.value=freq;
-o.start();
-g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+time);
-o.stop(audioCtx.currentTime+time);
-}
-
-//////////////////////////////////////////////////
-// 關卡
+// 穩定關卡（修正第3關）
 //////////////////////////////////////////////////
 
 const LEVELS=[
-{best:4,m:[[2,0],[1,0]]},
-{best:6,m:[[2,0,0],[0,1,0],[0,0,0]]},
-{best:9,m:[[0,0,2],[1,1,0],[0,0,0]]}
+{m:[[2,0],[1,0]]},
+{m:[[2,0,0],[0,1,0],[0,0,0]]},
+// ✅ 修正：避免初始分割區域
+{m:[[0,0,2],[1,0,0],[0,0,0]]}
 ];
 
 //////////////////////////////////////////////////
@@ -90,39 +68,15 @@ const LEVELS=[
 //////////////////////////////////////////////////
 
 function init(){
-  function rebuildCatFromGrid(){
 
-catPath=[];
-
-for(let y=0;y<grid.length;y++){
-for(let x=0;x<grid[0].length;x++){
-
-if(grid[y][x]===2){
-catPath.push({x,y});
-grid[y][x]=3;
-}
-}
-}
-
-if(catPath.length!==1){
-alert("⚠ 必須且只能有一隻貓起點！");
-editorMode=true;
-return false;
-}
-
-history=[];
-moveCount=0;
-return true;
-}
 grid=LEVELS[level-1].m.map(r=>[...r]);
 catPath=[];
 history=[];
-moveCount=0;
 
 for(let y=0;y<grid.length;y++)
 for(let x=0;x<grid[0].length;x++)
 if(grid[y][x]==2){
-catPath=[{x,y}];
+catPath.push({x,y});
 grid[y][x]=3;
 }
 
@@ -134,10 +88,122 @@ draw();
 }
 
 //////////////////////////////////////////////////
-// 畫面
+// Flood Fill 防死局（核心）
+//////////////////////////////////////////////////
+
+function reachable(start){
+
+let stack=[start];
+let visited=new Set([start.x+","+start.y]);
+
+while(stack.length){
+let p=stack.pop();
+
+[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{
+let nx=p.x+d[0];
+let ny=p.y+d[1];
+let key=nx+","+ny;
+
+if(grid[ny]?.[nx]===0&&!visited.has(key)){
+visited.add(key);
+stack.push({x:nx,y:ny});
+}
+});
+}
+return visited.size;
+}
+
+function safeCheck(){
+
+let empty=[];
+for(let y=0;y<grid.length;y++)
+for(let x=0;x<grid[0].length;x++)
+if(grid[y][x]==0) empty.push({x,y});
+
+if(!empty.length) return true;
+
+return reachable(empty[0])===empty.length;
+}
+
+//////////////////////////////////////////////////
+// Undo（完全重寫）
+//////////////////////////////////////////////////
+
+function saveState(){
+history.push({
+grid:grid.map(r=>[...r]),
+path:catPath.map(p=>({...p}))
+});
+}
+
+function undo(){
+if(!history.length) return;
+
+let s=history.pop();
+grid=s.grid;
+catPath=s.path;
+draw();
+}
+
+//////////////////////////////////////////////////
+// 移動（安全滑行）
+//////////////////////////////////////////////////
+
+function move(dx,dy){
+
+saveState();
+
+let head=catPath.at(-1);
+let moved=false;
+
+while(true){
+
+let nx=head.x+dx;
+let ny=head.y+dy;
+
+if(grid[ny]?.[nx]!==0) break;
+
+grid[ny][nx]=3;
+catPath.push({x:nx,y:ny});
+head={x:nx,y:ny};
+moved=true;
+
+if(!safeCheck()){
+undo();
+return;
+}
+}
+
+if(moved){
+draw();
+checkWin();
+}
+}
+
+//////////////////////////////////////////////////
+// 勝利
+//////////////////////////////////////////////////
+
+function checkWin(){
+
+if(grid.some(r=>r.includes(0))) return;
+
+setTimeout(()=>{
+level++;
+if(level>LEVELS.length){
+alert("🐱 全部完成！");
+level=1;
+}
+init();
+},250);
+}
+
+//////////////////////////////////////////////////
+// 繪製
 //////////////////////////////////////////////////
 
 function draw(){
+
 ctx.clearRect(0,0,canvas.width,canvas.height);
 
 grid.forEach((row,y)=>{
@@ -154,164 +220,26 @@ ctx.fillText("📦",x*TILE+15,y*TILE+50);
 
 catPath.forEach((p,i)=>{
 if(i<catPath.length-1){
-ctx.font="25px Arial";
+ctx.font="24px Arial";
 ctx.fillText("🐾",p.x*TILE+20,p.y*TILE+50);
 }
 });
 
-let head=catPath.at(-1);
+let h=catPath.at(-1);
 ctx.font="48px Arial";
-ctx.fillText("🐱",head.x*TILE+10,head.y*TILE+55);
+ctx.fillText("🐱",h.x*TILE+10,h.y*TILE+55);
 }
 
 //////////////////////////////////////////////////
-// Undo
-//////////////////////////////////////////////////
-
-function save(){
-history.push({
-grid:grid.map(r=>[...r]),
-path:catPath.map(p=>({...p})),
-moves:moveCount
-});
-}
-
-function undo(){
-let h=history.pop();
-if(!h)return;
-grid=h.grid;
-catPath=h.path;
-moveCount=h.moves;
-beep(220,.08);
-draw();
-}
-
-//////////////////////////////////////////////////
-// 移動
-//////////////////////////////////////////////////
-
-function move(dx,dy){
-
-if(editorMode)return;
-
-save();
-moveCount++;
-beep(500,.05);
-
-let head=catPath.at(-1);
-
-while(true){
-let nx=head.x+dx;
-let ny=head.y+dy;
-
-if(grid[ny]?.[nx]!==0)break;
-
-grid[ny][nx]=3;
-catPath.push({x:nx,y:ny});
-head={x:nx,y:ny};
-}
-
-draw();
-checkWin();
-}
-
-//////////////////////////////////////////////////
-// 星級判定
-//////////////////////////////////////////////////
-
-function calcStars(){
-let best=LEVELS[level-1].best;
-if(moveCount<=best) return "⭐⭐⭐";
-if(moveCount<=best+2) return "⭐⭐";
-return "⭐";
-}
-
-//////////////////////////////////////////////////
-// 勝利
-//////////////////////////////////////////////////
-
-function checkWin(){
-if(grid.some(r=>r.includes(0)))return;
-
-beep(900,.2);
-
-document.getElementById("stars").innerText=calcStars();
-
-setTimeout(()=>{
-level++;
-if(level>LEVELS.length){
-alert("🐱 Longcat PRO 全破！");
-level=1;
-}
-init();
-},600);
-}
-
-//////////////////////////////////////////////////
-// 編輯器模式
-//////////////////////////////////////////////////
-
-canvas.addEventListener("click",e=>{
-if(!editorMode)return;
-
-const rect=canvas.getBoundingClientRect();
-let x=Math.floor((e.clientX-rect.left)/TILE);
-let y=Math.floor((e.clientY-rect.top)/TILE);
-
-grid[y][x]=(grid[y][x]+1)%3;
-draw();
-});
-
-function toggleEditor(){
-
-editorMode=!editorMode;
-
-if(editorMode){
-alert("進入編輯器模式");
-return;
-}
-
-// ← 離開編輯器時修復資料
-if(!rebuildCatFromGrid()) return;
-
-draw();
-alert("已套用新關卡");
-
-}
-
-//////////////////////////////////////////////////
-// 手機滑動
-//////////////////////////////////////////////////
-
-let sx=0,sy=0;
-
-canvas.addEventListener("touchstart",e=>{
-sx=e.touches[0].clientX;
-sy=e.touches[0].clientY;
-});
-
-canvas.addEventListener("touchend",e=>{
-let dx=e.changedTouches[0].clientX-sx;
-let dy=e.changedTouches[0].clientY-sy;
-
-if(Math.abs(dx)>Math.abs(dy))
-move(dx>0?1:-1,0);
-else
-move(0,dy>0?1:-1);
-});
-
-//////////////////////////////////////////////////
-// 鍵盤
+// 控制
 //////////////////////////////////////////////////
 
 window.addEventListener("keydown",e=>{
-if(e.key==="z"||e.key==="Z")undo();
-if(e.key==="e"||e.key==="E")toggleEditor();
-
-if(e.key==="ArrowUp")move(0,-1);
-if(e.key==="ArrowDown")move(0,1);
-if(e.key==="ArrowLeft")move(-1,0);
-if(e.key==="ArrowRight")move(1,0);
+if(e.key==="z"||e.key==="Z") undo();
+if(e.key==="ArrowUp") move(0,-1);
+if(e.key==="ArrowDown") move(0,1);
+if(e.key==="ArrowLeft") move(-1,0);
+if(e.key==="ArrowRight") move(1,0);
 });
 
 init();
