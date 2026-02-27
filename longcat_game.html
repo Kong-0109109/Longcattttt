@@ -1,0 +1,215 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>極簡 Longcat 挑戰</title>
+    <style>
+        :root {
+            --bg-color: #f0f0f0;
+            --grid-color: #ffffff;
+            --wall-color: #333;
+            --cat-head: #ff9f43;
+            --cat-body: #ffdb58;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: var(--bg-color);
+            font-family: 'Arial', sans-serif;
+        }
+        #ui-layer {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        canvas {
+            border: 4px solid var(--wall-color);
+            background-color: var(--grid-color);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .stats {
+            font-size: 20px;
+            font-weight: bold;
+            color: #555;
+        }
+        .controls {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div class="stats">當前關卡: <span id="level-display">1</span></div>
+    <div class="stats">最高紀錄: <span id="high-score">1</span></div>
+    <div style="margin-top: 10px;">
+        皮膚：<select id="skin-select" onchange="changeSkin()">
+            <option value="orange">經典橘貓</option>
+            <option value="black">酷炫黑貓 (關卡 5 解鎖)</option>
+            <option value="rainbow">彩虹貓 (關卡 10 解鎖)</option>
+        </select>
+    </div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div class="controls">使用鍵盤方向鍵 [↑][↓][←][→] 來移動貓咪</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const levelDisplay = document.getElementById('level-display');
+    const highScoreDisplay = document.getElementById('high-score');
+    const skinSelect = document.getElementById('skin-select');
+
+    // 遊戲常數
+    const GRID_SIZE = 50;
+    let currentLevel = 1;
+    let highScore = localStorage.getItem('longcat_highscore') || 1;
+
+    // 貓咪狀態
+    let cat = {
+        segments: [], // [{x, y}] 第一個是頭
+        colorHead: '#ff9f43',
+        colorBody: '#ffdb58'
+    };
+
+    // 地圖資料 (簡易生成邏輯：關卡越高，地圖越大)
+    let map = [];
+    let cols, rows;
+
+    function initLevel(lvl) {
+        levelDisplay.innerText = lvl;
+        highScoreDisplay.innerText = highScore;
+
+        // 隨難度增加地圖大小 (最小 4x4, 最大 10x10)
+        const size = Math.min(4 + Math.floor(lvl / 10), 10);
+        cols = size;
+        rows = size;
+        canvas.width = cols * GRID_SIZE;
+        canvas.height = rows * GRID_SIZE;
+
+        // 初始化空白地圖 (0: 空地, 1: 牆壁, 2: 貓身)
+        map = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+        // 簡單隨機障礙物 (關卡越高障礙越多，但不超過 15%)
+        for(let i=0; i < Math.floor(cols*rows*0.1); i++) {
+            let rx = Math.floor(Math.random()*cols);
+            let ry = Math.floor(Math.random()*rows);
+            if(!(rx === 0 && ry === 0)) map[ry][rx] = 1;
+        }
+
+        // 放置貓咪起點
+        cat.segments = [{x: 0, y: 0}];
+        map[0][0] = 2;
+
+        draw();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                // 畫格子線
+                ctx.strokeStyle = "#eee";
+                ctx.strokeRect(c * GRID_SIZE, r * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+
+                if (map[r][c] === 1) {
+                    ctx.fillStyle = "#333"; // 牆壁
+                    ctx.fillRect(c * GRID_SIZE + 2, r * GRID_SIZE + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+                }
+            }
+        }
+
+        // 畫貓咪身體
+        cat.segments.forEach((seg, index) => {
+            ctx.fillStyle = (index === 0) ? cat.colorHead : cat.colorBody;
+            ctx.beginPath();
+            ctx.roundRect(seg.x * GRID_SIZE + 4, seg.y * GRID_SIZE + 4, GRID_SIZE - 8, GRID_SIZE - 8, 8);
+            ctx.fill();
+        });
+    }
+
+    function move(dx, dy) {
+        let moved = false;
+        let head = { ...cat.segments[0] };
+
+        while (true) {
+            let nextX = head.x + dx;
+            let nextY = head.y + dy;
+
+            // 檢查邊界與碰撞 (牆壁或自己的身體)
+            if (nextX >= 0 && nextX < cols && nextY >= 0 && nextY < rows && map[nextY][nextX] === 0) {
+                head.x = nextX;
+                head.y = nextY;
+                map[nextY][nextX] = 2;
+                cat.segments.unshift({ ...head }); // 增加身體
+                moved = true;
+            } else {
+                break;
+            }
+        }
+
+        if (moved) {
+            draw();
+            checkWin();
+        }
+    }
+
+    function checkWin() {
+        // 檢查是否所有空格都被填滿 (map 中沒有 0)
+        const isWin = map.every(row => row.every(cell => cell !== 0));
+        if (isWin) {
+            setTimeout(() => {
+                alert("恭喜通關！");
+                currentLevel++;
+                if(currentLevel > highScore) {
+                    highScore = currentLevel;
+                    localStorage.setItem('longcat_highscore', highScore);
+                }
+                initLevel(currentLevel);
+            }, 100);
+        }
+    }
+
+    function changeSkin() {
+        const val = skinSelect.value;
+        if (val === 'black' && currentLevel < 5) {
+            alert("需達到第 5 關才可解鎖此皮膚！");
+            skinSelect.value = 'orange';
+            return;
+        }
+        if (val === 'rainbow' && currentLevel < 10) {
+            alert("需達到第 10 關才可解鎖此皮膚！");
+            skinSelect.value = 'orange';
+            return;
+        }
+
+        // 更新顏色
+        if(val === 'orange') { cat.colorHead = '#ff9f43'; cat.colorBody = '#ffdb58'; }
+        if(val === 'black') { cat.colorHead = '#222'; cat.colorBody = '#555'; }
+        if(val === 'rainbow') { cat.colorHead = '#ff0000'; cat.colorBody = 'cyan'; }
+        draw();
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp') move(0, -1);
+        if (e.key === 'ArrowDown') move(0, 1);
+        if (e.key === 'ArrowLeft') move(-1, 0);
+        if (e.key === 'ArrowRight') move(1, 0);
+    });
+
+    // 啟動第一關
+    initLevel(currentLevel);
+
+</script>
+</body>
+</html>
